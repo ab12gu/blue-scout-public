@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@tailwindcss/cli": "^4.0.15",
+    "autoprefixer": "^10.4.21",
+    "daisyui": "^5.0.9",
+    "tailwindcss": "^4.0.15"
+  },
+  "scripts": {
+    "build": "npx @tailwindcss/cli -i tailwind.css -o public/tailwind.css --minify"
+  }
+}
