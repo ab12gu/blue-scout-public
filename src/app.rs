@@ -1,15 +1,13 @@
 #![allow(dead_code, unused_variables)]
 
-use leptos::{ev, prelude::*};
+use leptos::prelude::*;
 use leptos_meta::*;
 use leptos_router::{
     components::{Route, Router, Routes},
     StaticSegment,
 };
 
-use leptos::wasm_bindgen::{self, JsCast};
-
-use web_sys::{window, HtmlInputElement};
+use web_sys::{window, Event};
 
 use crate::components::Dock;
 
@@ -115,123 +113,110 @@ fn HomePage() -> impl IntoView {
 
 #[component]
 fn SettingsPage() -> impl IntoView {
-    // Initialize state with localStorage values
-    let initial_theme = window()
-        .and_then(|win| win.local_storage().ok().flatten())
-        .and_then(|storage| storage.get_item("theme").ok().flatten())
-        .unwrap_or_else(|| "dark".into());
+    // Create signals for theme and team number
+    let (theme, set_theme) = signal("dark".to_string());
+    let (team_number, set_team_number) = signal("".to_string());
 
-    let is_dark_theme = RwSignal::new(initial_theme == "dark");
-
-    // Get saved team number if available
-    let initial_team_number = window()
-        .and_then(|win| win.local_storage().ok().flatten())
-        .and_then(|storage| storage.get_item("teamNumber").ok().flatten())
-        .unwrap_or_default();
-
-    // Set up effects that run when the component mounts
+    // Initialize values from localStorage on component mount
     Effect::new(move |_| {
         if let Some(window) = window() {
-            // Set the initial theme
-            if let Some(document) = window.document() {
-                if let Some(html) = document.document_element() {
-                    let _ = html.set_attribute(
-                        "data-theme",
-                        if is_dark_theme() { "dark" } else { "light" },
-                    );
+            if let Ok(storage) = window.local_storage()
+                && let Some(storage) = storage
+            {
+                // Get saved theme
+                if let Ok(Some(saved_theme)) = storage.get_item("theme") {
+                    set_theme(saved_theme);
+                }
+
+                // Get saved team number
+                if let Ok(Some(saved_team_number)) = storage.get_item("teamNumber") {
+                    set_team_number(saved_team_number);
                 }
             }
         }
     });
 
-    // Handler for theme toggle
-    let toggle_theme = move |ev: ev::Event| {
-        let input_el = event_target::<HtmlInputElement>(&ev);
-        let checked = input_el.map(|input| input.checked()).unwrap_or(false);
+    // Handle theme toggle
+    let on_theme_change = move |ev: Event| {
+        let is_checked = event_target_checked(&ev);
+        let new_theme = if is_checked { "dark" } else { "light" };
+        set_theme(new_theme.to_string());
 
-        is_dark_theme.set(checked);
-
+        // Update localStorage and document
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
-                // Save to localStorage
-                let theme = if checked { "dark" } else { "light" };
-                let _ = storage.set_item("theme", theme);
+                let _ = storage.set_item("theme", new_theme);
+            }
 
-                // Update document theme
-                if let Some(document) = window.document() {
-                    if let Some(html) = document.document_element() {
-                        let _ = html.set_attribute("data-theme", theme);
-                    }
+            if let Some(document) = window.document() {
+                if let Some(html) = document.document_element() {
+                    let _ = html.set_attribute("data-theme", new_theme);
                 }
             }
         }
     };
 
-    // Handler for team number input
-    let save_team_number = move |ev: ev::Event| {
-        let input_el = event_target::<HtmlInputElement>(&ev);
-        let value = input_el.map(|input| input.value()).unwrap_or_default();
+    // Handle team number change
+    let on_team_number_change = move |ev: Event| {
+        let new_value = event_target_value(&ev);
+        set_team_number(new_value.clone());
 
+        // Save to localStorage
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
-                let _ = storage.set_item("teamNumber", &value);
+                let _ = storage.set_item("teamNumber", &new_value);
             }
         }
     };
 
     view! {
         <PageWrapper>
-                    <div class="container mx-auto max-w-3xl">
-                        <h1 class="text-3xl font-bold text-center mb-8">Settings</h1>
-                        <div class="card bg-base-200 shadow-xl">
-                            <div class="card-body p-8">
-                                <div class="form-control">
-                                    <label class="label cursor-pointer">
-                                        <span class="label-text text-lg">Dark Theme</span>
-                                        <input
-                                            type="checkbox"
-                                            class="toggle toggle-primary"
-                                            prop:checked=move || is_dark_theme()
-                                            id="themeToggle"
-                                            on:change=toggle_theme
-                                        />
-                                    </label>
-                                </div>
-                                <div class="form-control">
-                                    <div class="w-96 relative">
-                                        <label class="label cursor-pointer">
-                                            <span class="label-text text-lg">Enter Team Number:</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            class="input input-primary"
-                                            id="teamNumberInput"
-                                            prop:value=initial_team_number
-                                            on:change=save_team_number
-                                        />
-                                    </div>
-                                </div>
-                                <div class="form-control mt-6">
-                                    <label class="label">
-                                        <span class="label-text text-lg">About</span>
-                                    </label>
-                                    <div class="ml-4 mt-2">
-                                        <p>4682 Scouting App v1.0</p>
-                                        <p class="text-sm text-gray-400 mt-2">
-                                            Created by Team 4682 {"\"CyBears\""}
-                                        </p>
-                                    </div>
-                                </div>
+            <div class="container mx-auto max-w-3xl">
+                <h1 class="text-3xl font-bold text-center mb-8">Settings</h1>
+                <div class="card bg-base-200 shadow-xl">
+                    <div class="card-body p-8">
+                        <div class="form-control">
+                            <label class="label cursor-pointer">
+                                <span class="label-text text-lg">Dark Theme</span>
+                                <input
+                                    type="checkbox"
+                                    class="toggle toggle-primary"
+                                    id="themeToggle"
+                                    checked=move || theme() == "dark"
+                                    on:change=on_theme_change
+                                />
+                            </label>
+                        </div>
+                        <div class="form-control">
+                            <div class="w-96 relative">
+                                <label class="label cursor-pointer">
+                                    <span class="label-text text-lg">Enter Team Number:</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    class="input input-primary"
+                                    id="teamNumberInput"
+                                    prop:value=team_number
+                                    on:change=on_team_number_change
+                                />
+                            </div>
+                        </div>
+                        <div class="form-control mt-6">
+                            <label class="label">
+                                <span class="label-text text-lg">About</span>
+                            </label>
+                            <div class="ml-4 mt-2">
+                                <p>4682 Scouting App v1.0</p>
+                                <p class="text-sm text-gray-400 mt-2">
+                                    Created by Team 4682 {"\"CyBears\""}
+                                </p>
                             </div>
                         </div>
                     </div>
-                </PageWrapper>
+                </div>
+            </div>
+        </PageWrapper>
     }
-}
-
-// Helper function to get element from event
-fn event_target<T: JsCast>(ev: &ev::Event) -> Option<T> {
-    ev.target().and_then(|target| target.dyn_into::<T>().ok())
 }
 
 #[component]
