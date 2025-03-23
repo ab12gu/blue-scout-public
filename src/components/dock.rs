@@ -5,7 +5,11 @@ use leptos_router::hooks::use_location;
 pub fn Dock() -> impl IntoView {
     view! {
         <div class="dock">
-            <button class="outline-none" class:dock-active=move || use_location().pathname.read().as_str() == "/" id="addDataButton">
+            <button
+                class="outline-none"
+                class:dock-active=move || use_location().pathname.read().as_str() == "/"
+                id="addDataButton"
+            >
                 <svg
                     enable-background="new 0 0 50 50"
                     height="50px"
@@ -42,7 +46,11 @@ pub fn Dock() -> impl IntoView {
                 <span class="dock-label">Add Data</span>
             </button>
 
-            <button class="outline-none" class:dock-active=move || use_location().pathname.read().as_str() == "/view-data" id="viewDataButton">
+            <button
+                class="outline-none"
+                class:dock-active=move || use_location().pathname.read().as_str() == "/view-data"
+                id="viewDataButton"
+            >
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -152,7 +160,11 @@ pub fn Dock() -> impl IntoView {
                 <span class="dock-label">View Data</span>
             </button>
 
-            <button class="outline-none" class:dock-active=move || use_location().pathname.read().as_str() == "/settings" id="settingsButton">
+            <button
+                class="outline-none"
+                class:dock-active=move || use_location().pathname.read().as_str() == "/settings"
+                id="settingsButton"
+            >
                 <svg class="size-[1.2em]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                     <g fill="currentColor" stroke-linejoin="miter" stroke-linecap="butt">
                         <circle
