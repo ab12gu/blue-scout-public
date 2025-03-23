@@ -1,5 +1,5 @@
 #![feature(let_chains)]
-#![allow(dead_code, unused_variables)]
+//#![allow(dead_code, unused_variables)]
 pub mod app;
 pub mod components;
 pub mod db;

@@ -1,18 +1,12 @@
 #![cfg(feature = "ssr")]
 use std::{collections::HashMap, fmt::Display, str::FromStr};
 
-use axum::{http::StatusCode, Json};
+use axum::http::StatusCode;
 use duckdb::{params, Connection, Result, Row};
 use once_cell::sync::OnceCell;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct FormResponse {
-    status: &'static str,
-    message: &'static str,
-}
 
 static DB: OnceCell<Mutex<Connection>> = OnceCell::new();
 
@@ -178,7 +172,7 @@ pub fn extract_checkbox(value: Option<String>) -> bool {
 }
 
 // Insert the form data into the SQLite database
-async fn insert_form_data(data_point: DataPoint) -> duckdb::Result<()> {
+pub async fn insert_form_data(data_point: DataPoint) -> duckdb::Result<()> {
     let db = DB.get().expect("Database not initialized");
     let conn = db.lock().await;
 
@@ -189,24 +183,52 @@ async fn insert_form_data(data_point: DataPoint) -> duckdb::Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, Copy)]
 pub struct TeamInfo {
-    number: usize,
+    team_number: u32,
     avg_coral: f64,
+    avg_auto_coral: f64,
     avg_barge_algae: f64,
     avg_floor_algae: f64,
-    score_l1: bool,
-    score_l2: bool,
-    score_l3: bool,
-    score_l4: bool,
+    score_l1: u32,
+    score_l2: u32,
+    score_l3: u32,
+    score_l4: u32,
     sum_of_deep_climbs: u32,
     sum_of_climb_not_attempted: u32,
 }
 
+impl TeamInfo {
+    pub fn empty() -> Self {
+        TeamInfo {
+            team_number: 0,
+            avg_coral: 0.0,
+            avg_auto_coral: 0.0,
+            avg_barge_algae: 0.0,
+            avg_floor_algae: 0.0,
+            score_l1: 0,
+            score_l2: 0,
+            score_l3: 0,
+            score_l4: 0,
+            sum_of_deep_climbs: 0,
+            sum_of_climb_not_attempted: 0,
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct MatchInfo {
-    red: Vec<TeamInfo>,
-    blue: Vec<TeamInfo>,
+    red: [TeamInfo; 3],
+    blue: [TeamInfo; 3],
+}
+
+impl MatchInfo {
+    pub fn empty() -> Self {
+        MatchInfo {
+            red: [TeamInfo::empty(); 3],
+            blue: [TeamInfo::empty(); 3],
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -237,7 +259,7 @@ struct Alliance {
     team_keys: Vec<String>,
 }
 
-pub async fn get_match_info(match_number: u32) -> Result<Json<MatchInfo>, anyhow::Error> {
+pub async fn get_match_info(match_number: u32, event: String) -> Result<MatchInfo, anyhow::Error> {
     let mut headers = header::HeaderMap::new();
     headers.insert("accept", "application/json".parse()?);
     headers.insert("X-TBA-Auth-Key", std::env::var("TBA_API_KEY")?.parse()?);
@@ -247,7 +269,10 @@ pub async fn get_match_info(match_number: u32) -> Result<Json<MatchInfo>, anyhow
         .build()?;
     let matches: Vec<Match> = serde_json::from_str(
         &client
-            .get("https://www.thebluealliance.com/api/v3/event/2025wabon/matches/simple")
+            .get(format!(
+                "https://www.thebluealliance.com/api/v3/event/{}/matches/simple",
+                event
+            ))
             .headers(headers)
             .send()
             .await?
@@ -268,6 +293,13 @@ pub async fn get_match_info(match_number: u32) -> Result<Json<MatchInfo>, anyhow
         .map(|x| x.trim_start_matches("frc").parse::<usize>().unwrap())
         .collect();
 
+    if red_team.len() != 3 {
+        return Err(anyhow::anyhow!(
+            "Invalid red team data. Expected 3 teams but found {}",
+            red_team.len()
+        ));
+    }
+
     let blue_team: Vec<usize> = target_match
         .alliances
         .blue
@@ -275,6 +307,13 @@ pub async fn get_match_info(match_number: u32) -> Result<Json<MatchInfo>, anyhow
         .iter()
         .map(|x| x.trim_start_matches("frc").parse::<usize>().unwrap())
         .collect();
+
+    if blue_team.len() != 3 {
+        return Err(anyhow::anyhow!(
+            "Invalid blue team data. Expected 3 teams but found {}",
+            blue_team.len()
+        ));
+    }
 
     let db = DB.get().expect("Database not initialized");
     let conn = db.lock().await;
@@ -301,7 +340,21 @@ pub async fn get_match_info(match_number: u32) -> Result<Json<MatchInfo>, anyhow
         team_data.entry(data.team_number).or_default().push(data);
     }
 
+    let mut match_info = MatchInfo::empty();
+
     for (team_number, data) in team_data {
+        let is_blue_team = blue_team.contains(&(team_number as usize));
+        let team_index = if is_blue_team {
+            blue_team
+                .iter()
+                .position(|&x| x == team_number as usize)
+                .unwrap()
+        } else {
+            red_team
+                .iter()
+                .position(|&x| x == team_number as usize)
+                .unwrap()
+        };
         // Process data for each team
         // Example: Calculate average score for each team
         let avg_coral = data
@@ -309,24 +362,44 @@ pub async fn get_match_info(match_number: u32) -> Result<Json<MatchInfo>, anyhow
             .map(|x| (x.l4_coral + x.l3_coral + x.l2_coral + x.l1_coral) as u32)
             .sum::<u32>() as f64
             / data.len() as f64;
+        let avg_auto_coral =
+            data.iter().map(|x| x.auto_coral as u32).sum::<u32>() as f64 / data.len() as f64;
         let avg_barge_algae =
             data.iter().map(|x| x.algae_barge as u32).sum::<u32>() as f64 / data.len() as f64;
         let avg_floor_algae =
             data.iter().map(|x| x.algae_floor_hole as u32).sum::<u32>() as f64 / data.len() as f64;
         let (score_l1, score_l2, score_l3, score_l4) = (
-            data.iter().map(|x| x.l1_coral).any(|x| x > 0),
-            data.iter().map(|x| x.l2_coral).any(|x| x > 0),
-            data.iter().map(|x| x.l3_coral).any(|x| x > 0),
-            data.iter().map(|x| x.l4_coral).any(|x| x > 0),
+            data.iter().filter(|x| x.l1_coral > 0).count() as u32,
+            data.iter().filter(|x| x.l2_coral > 0).count() as u32,
+            data.iter().filter(|x| x.l3_coral > 0).count() as u32,
+            data.iter().filter(|x| x.l4_coral > 0).count() as u32,
         );
         let sum_of_deep_climbs = data
             .iter()
             .map(|x| (x.climb == ClimbType::Deep) as usize)
-            .sum::<usize>();
-        let sum_of_deep_climbs = data
+            .sum::<usize>() as u32;
+        let sum_of_climb_not_attempted = data
             .iter()
             .map(|x| (x.climb == ClimbType::NotAttempted) as usize)
-            .sum::<usize>();
+            .sum::<usize>() as u32;
+        let team_info = TeamInfo {
+            team_number,
+            avg_coral,
+            avg_auto_coral,
+            avg_barge_algae,
+            avg_floor_algae,
+            score_l1,
+            score_l2,
+            score_l3,
+            score_l4,
+            sum_of_deep_climbs,
+            sum_of_climb_not_attempted,
+        };
+        if is_blue_team {
+            match_info.blue[team_index] = team_info;
+        } else {
+            match_info.red[team_index] = team_info;
+        }
     }
 
     todo!()

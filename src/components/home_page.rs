@@ -5,7 +5,7 @@ use leptos_meta::*;
 
 use crate::{
     components::PageWrapper,
-    db::{ClimbType, DataPoint},
+    db::{insert_form_data, ClimbType, DataPoint},
 };
 
 #[inline]
@@ -64,6 +64,8 @@ pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
             defense_bot: extract_checkbox(args.defense_bot),
             notes: args.notes,
         };
+
+        insert_form_data(data_point).await?;
 
         Ok(())
     }

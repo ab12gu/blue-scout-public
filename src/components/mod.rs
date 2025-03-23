@@ -22,6 +22,7 @@ pub fn PageWrapper(children: Children) -> impl IntoView {
 }
 
 #[component]
+#[allow(dead_code)]
 fn Card(children: Children) -> impl IntoView {
     view! {
         <div class="card bg-base-200 shadow-xl">
