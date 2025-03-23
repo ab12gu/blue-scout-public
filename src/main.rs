@@ -1,12 +1,17 @@
-
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
     use axum::Router;
+    use blue_scout::{app::*, db::init_db};
+    use dotenv::dotenv;
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
-    use blue_scout::app::*;
+
+    tracing_subscriber::fmt::init();
+    dotenv().ok();
+
+    init_db().unwrap();
 
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;

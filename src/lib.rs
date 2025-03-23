@@ -2,6 +2,7 @@
 #![allow(dead_code, unused_variables)]
 pub mod app;
 pub mod components;
+pub mod db;
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]

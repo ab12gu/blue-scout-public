@@ -16,21 +16,43 @@ leptos_meta = { version = "0.7.0" }
 tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
 wasm-bindgen = { version = "=0.2.100", optional = true }
 leptos_reactive = { version = "0.6.15", features = ["nightly"] }
-web-sys = { version = "0.3.77", features = ["Window", "Storage"] }
+web-sys = { version = "0.3.77", features = [
+    "Window",
+    "Storage",
+    "InputEvent",
+    "HtmlInputElement",
+] }
+# Server only
+once_cell = { version = "1.21.1", optional = true }
+reqwest = { version = "0.12.15", features = ["blocking"], optional = true }
+dotenv = { version = "0.15.0", optional = true }
+serde = { version = "1.0.219", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
+anyhow = { version = "1.0.97", optional = true }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing = "0.1.41"
+duckdb = { version = "1.2.1", features = ["bundled"] }
+
 
 [features]
 default = ["hydrate", "ssr"]
-hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen"]
 ssr = [
     "dep:axum",
     "dep:tokio",
     "dep:leptos_axum",
+    "dep:once_cell",
+
+    "dep:reqwest",
+    "dep:dotenv",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:anyhow",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
     "leptos_reactive/ssr",
 ]
-
+hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen"]
 
 # Defines a size-optimized profile for the WASM bundle in release mode
 [profile.wasm-release]

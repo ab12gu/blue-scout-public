@@ -1,14 +1,14 @@
-*:focus {
-    outline: 2px solid rgba(0, 123, 255, 0.3); /* Reduced opacity from likely 1.0 to 0.3 */
-    outline-offset: 2px;
-}
-
-.transparent-num {
+.transparent-num.transparent-num.transparent-num {
     background-color: transparent;
-    appearance: none;
+    appearance: textfield;
     border: none;
     outline: none;
     box-shadow: none;
+}
+
+*:focus {
+    outline: 2px solid rgba(0, 123, 255, 0.3); /* Reduced opacity from likely 1.0 to 0.3 */
+    outline-offset: 2px;
 }
 
 .transparent-num input[type="number"] {

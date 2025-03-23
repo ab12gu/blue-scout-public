@@ -1,6 +1,24 @@
-use leptos::prelude::*;
+use leptos::{prelude::*, task::spawn_local};
 
 use crate::components::PageWrapper;
+
+const CURRENT_EVENT: &str = "2025wabon";
+const CURRENT_MATCH: usize = 1;
+
+#[server]
+pub async fn fetch_data(match_number: u32) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::get_match_info;
+        println!("{:?}", get_match_info(match_number).await);
+        Ok(())
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        tracing::error!("Server function called without ssr feature enabled");
+        unreachable!("This should only be called on the server");
+    }
+}
 
 #[component]
 pub fn ViewDataPage() -> impl IntoView {
@@ -81,7 +99,15 @@ pub fn ViewDataPage() -> impl IntoView {
                                     <div class="text-2xl font-bold mb-2" id="matchNumber">
                                         Match #
                                     </div>
-                                    <div class="badge badge-neutral" id="matchTime">
+                                    <div
+                                        class="badge badge-neutral"
+                                        id="matchTime"
+                                        on:click=move |_| {
+                                            spawn_local(async {
+                                                fetch_data(CURRENT_MATCH as u32).await.unwrap();
+                                            });
+                                        }
+                                    >
                                         Time: TBD
                                     </div>
                                 </div>
@@ -90,7 +116,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                     <h2 class="text-xl font-bold text-center text-primary mb-4 text-blue-600">
                                         Blue Alliance
                                     </h2>
-                                    <div class="bg-primary/10 rounded-lg p-4 space-y-2">
+                                    <div class="rounded-lg p-4 space-y-2">
                                         <div class="team-container" id="blue1">
                                             <span class="font-bold">Team 1:</span>
                                             <span class="team-number">Loading...</span>

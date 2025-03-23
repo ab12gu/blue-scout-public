@@ -15,8 +15,12 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <script>{include_str!("../embed/theme.js")}</script>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
+                // injects a stylesheet into the document <head>
+                // id=leptos means cargo-leptos will hot-reload this stylesheet
+                <Stylesheet id="leptos" href="/pkg/blue_scout.css" />
                 <link
-                    href="https://cdn.jsdelivr.net/npm/daisyui@5"
+                    // href="https://cdn.jsdelivr.net/npm/daisyui@5"
+                    href="/tailwind.css"
                     rel="stylesheet"
                     type="text/css"
                 />
@@ -38,10 +42,6 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
 
     view! {
-        // injects a stylesheet into the document <head>
-        // id=leptos means cargo-leptos will hot-reload this stylesheet
-        <Stylesheet id="leptos" href="/pkg/blue_scout.css" />
-
         <Title text="4682's Scouting Site" />
 
         <Router>
