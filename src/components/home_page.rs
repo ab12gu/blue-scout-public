@@ -1,31 +1,70 @@
+use std::str::FromStr;
+
 use leptos::prelude::*;
 use leptos_meta::*;
 
-use crate::components::PageWrapper;
+use crate::{
+    components::PageWrapper,
+    db::{ClimbType, DataPoint},
+};
 
-#[server]
-#[allow(clippy::too_many_arguments)]
-pub async fn insert_data(
+#[inline]
+pub fn extract_checkbox(value: Option<String>) -> bool {
+    value.map(|x| x == "on").unwrap_or(false)
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct InsertDataArgs {
     name: String,
-    match_number: u32,
+    match_number: u16,
     team_number: u32,
-    auto_algae: u32,
-    auto_coral: u32,
+    auto_coral: u16,
+    auto_algae: u16,
     auto_leave: Option<String>,
     algae_clear: Option<String>,
-    l1_coral: u32,
-    l2_coral: u32,
-    l3_coral: u32,
-    l4_coral: u32,
-    dropped_coral: u32,
-    algae_barge: u32,
-    algae_floor_hole: u32,
+    l1_coral: u16,
+    l2_coral: u16,
+    l3_coral: u16,
+    l4_coral: u16,
+    dropped_coral: u16,
+    algae_barge: u16,
+    algae_floor_hole: u16,
     climb: String,
     defense_bot: Option<String>,
     notes: String,
-) -> Result<(), ServerFnError> {
+}
+
+#[server]
+#[allow(clippy::too_many_arguments)]
+pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
+        let data_point = DataPoint {
+            name: args.name,
+            match_number: args.match_number,
+            team_number: args.team_number,
+            auto_coral: args.auto_coral,
+            auto_algae: args.auto_algae,
+            auto_leave: extract_checkbox(args.auto_leave),
+            algae_clear: extract_checkbox(args.algae_clear),
+            l1_coral: args.l1_coral,
+            l2_coral: args.l2_coral,
+            l3_coral: args.l3_coral,
+            l4_coral: args.l4_coral,
+            dropped_coral: args.dropped_coral,
+            algae_barge: args.algae_barge,
+            algae_floor_hole: args.algae_floor_hole,
+            climb: match ClimbType::from_str(&args.climb) {
+                Ok(climb_type) => climb_type,
+                Err(_) => {
+                    tracing::error!("Unknown Climb Type: {}", &args.climb);
+                    ClimbType::Unknown
+                }
+            },
+            defense_bot: extract_checkbox(args.defense_bot),
+            notes: args.notes,
+        };
+
         Ok(())
     }
     #[cfg(not(feature = "ssr"))]

@@ -1,12 +1,11 @@
 #![cfg(feature = "ssr")]
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display, str::FromStr};
 
 use axum::{http::StatusCode, Json};
-use duckdb::{params, Connection, Result};
+use duckdb::{params, Connection, Result, Row};
 use once_cell::sync::OnceCell;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tokio::sync::Mutex;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -17,31 +16,31 @@ pub struct FormResponse {
 
 static DB: OnceCell<Mutex<Connection>> = OnceCell::new();
 
-pub fn init_db() -> rusqlite::Result<()> {
+pub fn init_db() -> duckdb::Result<()> {
     let conn = Connection::open("scouting_data.db")?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS scout_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
-            match_number TEXT,
-            team_number TEXT,
-            auto_algae TEXT,
-            auto_coral_number TEXT,
-            auto_leave TEXT CHECK (auto_leave IN ('Yes', 'No')),
-            algae_clear TEXT CHECK (algae_clear IN ('Yes', 'No')),
-            coral_l1 TEXT,
-            coral_l2 TEXT,
-            coral_l3 TEXT,
-            coral_l4 TEXT,
-            coral_dropped TEXT,
-            algae_floor_hole TEXT,
-            algae_barge TEXT,
+            match_number USMALLINT,
+            team_number UINTEGER,
+            auto_coral USMALLINT,
+            auto_algae USMALLINT,
+            auto_leave BOOL,
+            algae_clear BOOL,
+            l1_coral USMALLINT,
+            l2_coral USMALLINT,
+            l3_coral USMALLINT,
+            l4_coral USMALLINT,
+            dropped_coral USMALLINT,
+            algae_barge USMALLINT,
+            algae_floor_hole USMALLINT,
             climb TEXT,
-            defense_bot TEXT CHECK (defense_bot IN ('Yes', 'No')),
+            defense_bot BOOL,
             notes TEXT
         );",
-        (),
+        [],
     )?;
 
     if DB.set(Mutex::new(conn)).is_err() {
@@ -51,50 +50,118 @@ pub fn init_db() -> rusqlite::Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct DataPoint {
-    name: String,
-    match_number: usize,
-    team_number: usize,
-    auto_algae_number: usize,
-    auto_coral_number: usize,
-    auto_leave: bool,
-    algae_clear: bool,
-    coral_l1: usize,
-    coral_l2: usize,
-    coral_l3: usize,
-    coral_l4: usize,
-    coral_dropped: usize,
-    floor_hole: usize,
-    barge: usize,
-    climb: String,
-    defense_bot: bool,
-    notes: String,
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub enum ClimbType {
+    Deep,
+    Shallow,
+    Park,
+    NotAttempted,
+    Unknown,
 }
 
-fn map_datapoint(row: &Row<'_>) -> rusqlite::Result<DataPoint> {
+impl Display for ClimbType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClimbType::Deep => write!(f, "Deep"),
+            ClimbType::Shallow => write!(f, "Shallow"),
+            ClimbType::Park => write!(f, "Park"),
+            ClimbType::NotAttempted => write!(f, "Not Attempted"),
+            ClimbType::Unknown => write!(f, "Unknown"),
+        }
+    }
+}
+
+impl FromStr for ClimbType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Deep" => Ok(ClimbType::Deep),
+            "Shallow" => Ok(ClimbType::Shallow),
+            "Park" => Ok(ClimbType::Park),
+            "Not Attempted" => Ok(ClimbType::NotAttempted),
+            _ => Err(format!("Invalid ClimbType: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DataPoint {
+    pub name: String,
+    pub match_number: u16,
+    pub team_number: u32,
+    pub auto_coral: u16,
+    pub auto_algae: u16,
+    pub auto_leave: bool,
+    pub algae_clear: bool,
+    pub l1_coral: u16,
+    pub l2_coral: u16,
+    pub l3_coral: u16,
+    pub l4_coral: u16,
+    pub dropped_coral: u16,
+    pub algae_barge: u16,
+    pub algae_floor_hole: u16,
+    pub climb: ClimbType,
+    pub defense_bot: bool,
+    pub notes: String,
+}
+
+fn map_datapoint(row: &Row<'_>) -> duckdb::Result<DataPoint> {
     Ok(DataPoint {
         name: row.get(1)?,
-        match_number: row.get::<_, String>(2)?.parse().unwrap(),
-        team_number: row.get::<_, String>(3)?.parse().unwrap(),
-        auto_algae_number: row.get::<_, String>(4)?.parse().unwrap(),
-        auto_coral_number: row.get::<_, String>(5)?.parse().unwrap(),
-        auto_leave: row.get::<_, bool>(6)?,
-        algae_clear: row.get::<_, String>(7)? == "Yes",
-        coral_l1: row.get::<_, String>(8)?.parse().unwrap(),
-        coral_l2: row.get::<_, String>(9)?.parse().unwrap(),
-        coral_l3: row.get::<_, String>(10)?.parse().unwrap(),
-        coral_l4: row.get::<_, String>(11)?.parse().unwrap(),
-        coral_dropped: row.get::<_, String>(12)?.parse().unwrap(),
-        floor_hole: row.get::<_, String>(13)?.parse().unwrap(),
-        barge: row.get::<_, String>(14)?.parse().unwrap(),
-        climb: row.get(15)?,
-        defense_bot: row.get::<_, String>(16)? == "Yes",
+        match_number: row.get(2)?,
+        team_number: row.get(3)?,
+        auto_coral: row.get(4)?,
+        auto_algae: row.get(5)?,
+        auto_leave: row.get(6)?,
+        algae_clear: row.get(7)?,
+        l1_coral: row.get(8)?,
+        l2_coral: row.get(9)?,
+        l3_coral: row.get(10)?,
+        l4_coral: row.get(11)?,
+        dropped_coral: row.get(12)?,
+        algae_barge: row.get(13)?,
+        algae_floor_hole: row.get(14)?,
+        climb: {
+            let str = row.get::<_, String>(15)?;
+            match ClimbType::from_str(&str) {
+                Ok(climb_type) => climb_type,
+                Err(_) => {
+                    tracing::error!("Unknown Climb Type: {}", str);
+                    ClimbType::Unknown
+                }
+            }
+        },
+        defense_bot: row.get(16)?,
         notes: row.get(17)?,
     })
 }
 
-pub async fn get_data() -> std::result::Result<Json<Vec<DataPoint>>, (StatusCode, String)> {
+macro_rules! data_point_to_sql {
+    ($datapoint:expr) => {
+        params![
+            $datapoint.name,
+            $datapoint.match_number,
+            $datapoint.team_number,
+            $datapoint.auto_algae,
+            $datapoint.auto_coral,
+            $datapoint.auto_leave,
+            $datapoint.algae_clear,
+            $datapoint.l1_coral,
+            $datapoint.l2_coral,
+            $datapoint.l3_coral,
+            $datapoint.l4_coral,
+            $datapoint.dropped_coral,
+            $datapoint.algae_barge,
+            $datapoint.algae_floor_hole,
+            $datapoint.climb.to_string(),
+            $datapoint.defense_bot,
+            $datapoint.notes
+        ]
+    };
+}
+
+pub async fn get_data() -> std::result::Result<Vec<DataPoint>, (StatusCode, String)> {
     let db = DB.get().expect("Database not initialized");
     let conn = db.lock().await;
 
@@ -102,25 +169,7 @@ pub async fn get_data() -> std::result::Result<Json<Vec<DataPoint>>, (StatusCode
     let entry_iter = stmt.query_map([], map_datapoint).unwrap();
 
     let data_points = entry_iter.collect::<Result<Vec<DataPoint>, _>>().unwrap();
-    Ok(Json(data_points))
-}
-
-// Helper to safely extract string values from the JSON
-fn get_string_value(data: &Value, key: &str) -> String {
-    match data.get(key) {
-        Some(value) => {
-            if let Some(s) = value.as_str() {
-                s.to_string()
-            } else if let Some(n) = value.as_number() {
-                n.to_string()
-            } else if value.is_null() {
-                "".to_string()
-            } else {
-                value.to_string()
-            }
-        }
-        None => "".to_string(),
-    }
+    Ok(data_points)
 }
 
 #[inline]
@@ -129,49 +178,13 @@ pub fn extract_checkbox(value: Option<String>) -> bool {
 }
 
 // Insert the form data into the SQLite database
-async fn insert_form_data(
-    name: String,
-    match_number: u32,
-    team_number: u32,
-    auto_algae: u32,
-    auto_coral: u32,
-    auto_leave: Option<String>,
-    algae_clear: Option<String>,
-    l1_coral: u32,
-    l2_coral: u32,
-    l3_coral: u32,
-    l4_coral: u32,
-    dropped_coral: u32,
-    algae_barge: u32,
-    algae_floor_hole: u32,
-    climb: String,
-    defense_bot: Option<String>,
-    notes: String,
-) -> rusqlite::Result<()> {
+async fn insert_form_data(data_point: DataPoint) -> duckdb::Result<()> {
     let db = DB.get().expect("Database not initialized");
     let conn = db.lock().await;
 
     let mut stmt = conn.prepare("INSERT INTO scout_entries (name, match_number, team_number, auto_algae, auto_coral, auto_leave, algae_clear, l1_coral, l2_coral, l3_coral, l4_coral, dropped_coral, algae_barge, algae_floor_hole, climb, defense_bot, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")?;
 
-    stmt.execute(params![
-        name,
-        match_number,
-        team_number,
-        auto_algae,
-        auto_coral,
-        extract_checkbox(auto_leave),
-        extract_checkbox(algae_clear),
-        l1_coral,
-        l2_coral,
-        l3_coral,
-        l4_coral,
-        dropped_coral,
-        algae_barge,
-        algae_floor_hole,
-        climb,
-        extract_checkbox(defense_bot),
-        notes
-    ])?;
+    stmt.execute(data_point_to_sql!(data_point))?;
 
     Ok(())
 }
@@ -282,7 +295,7 @@ pub async fn get_match_info(match_number: u32) -> Result<Json<MatchInfo>, anyhow
 
     let data_points = entry_iter.collect::<Result<Vec<DataPoint>, _>>()?;
 
-    let mut team_data: HashMap<usize, Vec<DataPoint>> = HashMap::new();
+    let mut team_data: HashMap<u32, Vec<DataPoint>> = HashMap::new();
 
     for data in data_points {
         team_data.entry(data.team_number).or_default().push(data);
@@ -293,26 +306,26 @@ pub async fn get_match_info(match_number: u32) -> Result<Json<MatchInfo>, anyhow
         // Example: Calculate average score for each team
         let avg_coral = data
             .iter()
-            .map(|x| x.coral_l4 + x.coral_l3 + x.coral_l2 + x.coral_l1)
-            .sum::<usize>() as f64
+            .map(|x| (x.l4_coral + x.l3_coral + x.l2_coral + x.l1_coral) as u32)
+            .sum::<u32>() as f64
             / data.len() as f64;
         let avg_barge_algae =
-            data.iter().map(|x| x.barge).sum::<usize>() as f64 / data.len() as f64;
+            data.iter().map(|x| x.algae_barge as u32).sum::<u32>() as f64 / data.len() as f64;
         let avg_floor_algae =
-            data.iter().map(|x| x.floor_hole).sum::<usize>() as f64 / data.len() as f64;
+            data.iter().map(|x| x.algae_floor_hole as u32).sum::<u32>() as f64 / data.len() as f64;
         let (score_l1, score_l2, score_l3, score_l4) = (
-            data.iter().map(|x| x.coral_l1).any(|x| x > 0),
-            data.iter().map(|x| x.coral_l2).any(|x| x > 0),
-            data.iter().map(|x| x.coral_l3).any(|x| x > 0),
-            data.iter().map(|x| x.coral_l4).any(|x| x > 0),
+            data.iter().map(|x| x.l1_coral).any(|x| x > 0),
+            data.iter().map(|x| x.l2_coral).any(|x| x > 0),
+            data.iter().map(|x| x.l3_coral).any(|x| x > 0),
+            data.iter().map(|x| x.l4_coral).any(|x| x > 0),
         );
         let sum_of_deep_climbs = data
             .iter()
-            .map(|x| (x.climb == "Deep") as usize)
+            .map(|x| (x.climb == ClimbType::Deep) as usize)
             .sum::<usize>();
         let sum_of_deep_climbs = data
             .iter()
-            .map(|x| (x.climb == "Not Attempted") as usize)
+            .map(|x| (x.climb == ClimbType::NotAttempted) as usize)
             .sum::<usize>();
     }
 
