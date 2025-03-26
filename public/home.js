@@ -222,7 +222,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function updateAutoInput(type) {
-  const inputElement = document.querySelector(`input[name="auto_${type}"]`);
+  const inputElement = document.getElementById(`auto${type}`);
   let value = parseInt(inputElement.value);
 
   // Ensure value is a number
@@ -235,4 +235,10 @@ function updateAutoInput(type) {
   }
 
   inputElement.value = value;
+}
+
+function preventMinusSign(event) {
+  if (event.key === "-") {
+    event.preventDefault();
+  }
 }

@@ -1,12 +1,13 @@
 #![cfg(feature = "ssr")]
-use std::{collections::HashMap, fmt::Display, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
-use axum::http::StatusCode;
-use duckdb::{params, Connection, Result, Row};
+use duckdb::{params, Connection, Row};
 use once_cell::sync::OnceCell;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+
+use crate::{ClimbType, DataPoint, MatchInfo, TeamData, TeamInfo, TEAM_NAMES};
 
 static DB: OnceCell<Mutex<Connection>> = OnceCell::new();
 
@@ -14,8 +15,12 @@ pub fn init_db() -> duckdb::Result<()> {
     let conn = Connection::open("scouting_data.db")?;
 
     conn.execute(
+        "CREATE SEQUENCE IF NOT EXISTS scout_entries_id_seq START 1;",
+        [],
+    )?;
+    conn.execute(
         "CREATE TABLE IF NOT EXISTS scout_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY DEFAULT nextval('scout_entries_id_seq'),
             name TEXT,
             match_number USMALLINT,
             team_number UINTEGER,
@@ -42,62 +47,6 @@ pub fn init_db() -> duckdb::Result<()> {
     };
 
     Ok(())
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-pub enum ClimbType {
-    Deep,
-    Shallow,
-    Park,
-    NotAttempted,
-    Unknown,
-}
-
-impl Display for ClimbType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ClimbType::Deep => write!(f, "Deep"),
-            ClimbType::Shallow => write!(f, "Shallow"),
-            ClimbType::Park => write!(f, "Park"),
-            ClimbType::NotAttempted => write!(f, "Not Attempted"),
-            ClimbType::Unknown => write!(f, "Unknown"),
-        }
-    }
-}
-
-impl FromStr for ClimbType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "Deep" => Ok(ClimbType::Deep),
-            "Shallow" => Ok(ClimbType::Shallow),
-            "Park" => Ok(ClimbType::Park),
-            "Not Attempted" => Ok(ClimbType::NotAttempted),
-            _ => Err(format!("Invalid ClimbType: {}", s)),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct DataPoint {
-    pub name: String,
-    pub match_number: u16,
-    pub team_number: u32,
-    pub auto_coral: u16,
-    pub auto_algae: u16,
-    pub auto_leave: bool,
-    pub algae_clear: bool,
-    pub l1_coral: u16,
-    pub l2_coral: u16,
-    pub l3_coral: u16,
-    pub l4_coral: u16,
-    pub dropped_coral: u16,
-    pub algae_barge: u16,
-    pub algae_floor_hole: u16,
-    pub climb: ClimbType,
-    pub defense_bot: bool,
-    pub notes: String,
 }
 
 fn map_datapoint(row: &Row<'_>) -> duckdb::Result<DataPoint> {
@@ -155,14 +104,14 @@ macro_rules! data_point_to_sql {
     };
 }
 
-pub async fn get_data() -> std::result::Result<Vec<DataPoint>, (StatusCode, String)> {
+pub async fn get_data() -> std::result::Result<Vec<DataPoint>, anyhow::Error> {
     let db = DB.get().expect("Database not initialized");
     let conn = db.lock().await;
 
-    let mut stmt = conn.prepare("SELECT * FROM scout_entries").unwrap();
-    let entry_iter = stmt.query_map([], map_datapoint).unwrap();
+    let mut stmt = conn.prepare("SELECT * FROM scout_entries")?;
+    let entry_iter = stmt.query_map([], map_datapoint)?;
 
-    let data_points = entry_iter.collect::<Result<Vec<DataPoint>, _>>().unwrap();
+    let data_points = entry_iter.collect::<Result<Vec<DataPoint>, _>>()?;
     Ok(data_points)
 }
 
@@ -181,54 +130,6 @@ pub async fn insert_form_data(data_point: DataPoint) -> duckdb::Result<()> {
     stmt.execute(data_point_to_sql!(data_point))?;
 
     Ok(())
-}
-
-#[derive(Debug, Serialize, Clone, Copy)]
-pub struct TeamInfo {
-    team_number: u32,
-    avg_coral: f64,
-    avg_auto_coral: f64,
-    avg_barge_algae: f64,
-    avg_floor_algae: f64,
-    score_l1: u32,
-    score_l2: u32,
-    score_l3: u32,
-    score_l4: u32,
-    sum_of_deep_climbs: u32,
-    sum_of_climb_not_attempted: u32,
-}
-
-impl TeamInfo {
-    pub fn empty() -> Self {
-        TeamInfo {
-            team_number: 0,
-            avg_coral: 0.0,
-            avg_auto_coral: 0.0,
-            avg_barge_algae: 0.0,
-            avg_floor_algae: 0.0,
-            score_l1: 0,
-            score_l2: 0,
-            score_l3: 0,
-            score_l4: 0,
-            sum_of_deep_climbs: 0,
-            sum_of_climb_not_attempted: 0,
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub struct MatchInfo {
-    red: [TeamInfo; 3],
-    blue: [TeamInfo; 3],
-}
-
-impl MatchInfo {
-    pub fn empty() -> Self {
-        MatchInfo {
-            red: [TeamInfo::empty(); 3],
-            blue: [TeamInfo::empty(); 3],
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -259,7 +160,7 @@ struct Alliance {
     team_keys: Vec<String>,
 }
 
-pub async fn get_match_info(match_number: u32, event: String) -> Result<MatchInfo, anyhow::Error> {
+pub async fn get_match_info(match_number: u32, event: &str) -> Result<MatchInfo, anyhow::Error> {
     let mut headers = header::HeaderMap::new();
     headers.insert("accept", "application/json".parse()?);
     headers.insert("X-TBA-Auth-Key", std::env::var("TBA_API_KEY")?.parse()?);
@@ -282,7 +183,7 @@ pub async fn get_match_info(match_number: u32, event: String) -> Result<MatchInf
 
     let target_match: &Match = matches
         .iter()
-        .find(|x| x.match_number == match_number)
+        .find(|x| x.match_number == match_number && x.comp_level == "qm")
         .unwrap();
 
     let red_team: Vec<usize> = target_match
@@ -334,10 +235,18 @@ pub async fn get_match_info(match_number: u32, event: String) -> Result<MatchInf
 
     let data_points = entry_iter.collect::<Result<Vec<DataPoint>, _>>()?;
 
-    let mut team_data: HashMap<u32, Vec<DataPoint>> = HashMap::new();
+    let mut team_data: HashMap<u32, Vec<DataPoint>> = [
+        (red_team[0] as u32, Vec::new()),
+        (red_team[1] as u32, Vec::new()),
+        (red_team[2] as u32, Vec::new()),
+        (blue_team[0] as u32, Vec::new()),
+        (blue_team[1] as u32, Vec::new()),
+        (blue_team[2] as u32, Vec::new()),
+    ]
+    .into();
 
     for data in data_points {
-        team_data.entry(data.team_number).or_default().push(data);
+        team_data.get_mut(&data.team_number).unwrap().push(data);
     }
 
     let mut match_info = MatchInfo::empty();
@@ -355,8 +264,28 @@ pub async fn get_match_info(match_number: u32, event: String) -> Result<MatchInf
                 .position(|&x| x == team_number as usize)
                 .unwrap()
         };
-        // Process data for each team
-        // Example: Calculate average score for each team
+        let team_name = TEAM_NAMES
+            .get()
+            .unwrap()
+            .get(team_number as usize)
+            .cloned()
+            .flatten();
+        if data.is_empty() {
+            if is_blue_team {
+                match_info.blue[team_index] = TeamInfo {
+                    team_number,
+                    team_name,
+                    team_data: None,
+                };
+            } else {
+                match_info.red[team_index] = TeamInfo {
+                    team_number,
+                    team_name,
+                    team_data: None,
+                };
+            }
+            continue;
+        }
         let avg_coral = data
             .iter()
             .map(|x| (x.l4_coral + x.l3_coral + x.l2_coral + x.l1_coral) as u32)
@@ -382,8 +311,7 @@ pub async fn get_match_info(match_number: u32, event: String) -> Result<MatchInf
             .iter()
             .map(|x| (x.climb == ClimbType::NotAttempted) as usize)
             .sum::<usize>() as u32;
-        let team_info = TeamInfo {
-            team_number,
+        let team_data = TeamData {
             avg_coral,
             avg_auto_coral,
             avg_barge_algae,
@@ -396,11 +324,21 @@ pub async fn get_match_info(match_number: u32, event: String) -> Result<MatchInf
             sum_of_climb_not_attempted,
         };
         if is_blue_team {
-            match_info.blue[team_index] = team_info;
+            match_info.blue[team_index] = TeamInfo {
+                team_number,
+                team_name,
+                team_data: Some(team_data),
+            };
         } else {
-            match_info.red[team_index] = team_info;
+            match_info.red[team_index] = TeamInfo {
+                team_number,
+                team_name,
+                team_data: Some(team_data),
+            };
         }
     }
 
-    todo!()
+    match_info.predicted_time = target_match.predicted_time;
+
+    Ok(match_info)
 }

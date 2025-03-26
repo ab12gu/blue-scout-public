@@ -104,3 +104,8 @@ input::-webkit-inner-spin-button {
     min-height: 100vh; /* Full viewport height minus dock */
     overflow-x: hidden; /* Prevent horizontal scrolling during transitions */
 }
+
+html,
+body {
+    overscroll-behavior-x: none;
+}

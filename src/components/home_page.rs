@@ -1,14 +1,10 @@
-use std::str::FromStr;
-
 use leptos::prelude::*;
 use leptos_meta::*;
 
-use crate::{
-    components::PageWrapper,
-    db::{insert_form_data, ClimbType, DataPoint},
-};
+use crate::components::PageWrapper;
 
 #[inline]
+#[allow(dead_code)]
 pub fn extract_checkbox(value: Option<String>) -> bool {
     value.map(|x| x == "on").unwrap_or(false)
 }
@@ -39,6 +35,8 @@ pub struct InsertDataArgs {
 pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
+        use crate::{db::insert_form_data, ClimbType, DataPoint};
+        use std::str::FromStr;
         let data_point = DataPoint {
             name: args.name,
             match_number: args.match_number,
@@ -97,7 +95,7 @@ pub fn HomePage() -> impl IntoView {
                                     class="input input-bordered w-full"
                                     type="text"
                                     placeholder="Enter your name"
-                                    name="name"
+                                    name="args[name]"
                                     required
                                 />
                             </div>
@@ -110,8 +108,9 @@ pub fn HomePage() -> impl IntoView {
                                     class="input input-bordered w-full"
                                     type="number"
                                     placeholder="Enter match number"
-                                    name="match_number"
+                                    name="args[match_number]"
                                     required
+                                    onkeydown="preventMinusSign(event)"
                                 />
                             </div>
 
@@ -123,24 +122,9 @@ pub fn HomePage() -> impl IntoView {
                                     class="input input-bordered w-full"
                                     type="number"
                                     placeholder="Enter team number"
-                                    name="team_number"
+                                    name="args[team_number]"
                                     required
-                                />
-                            </div>
-
-                            <div class="form-control w-full mb-8">
-                                <label class="label pb-2">
-                                    <span class="label-text text-lg font-medium">
-                                        Auto Algae Number
-                                    </span>
-                                </label>
-                                <input
-                                    class="input input-bordered w-full"
-                                    type="number"
-                                    placeholder="Enter auto algae number"
-                                    name="auto_algae"
-                                    value="0"
-                                    onchange="updateAutoInput('algae')"
+                                    onkeydown="preventMinusSign(event)"
                                 />
                             </div>
 
@@ -151,12 +135,32 @@ pub fn HomePage() -> impl IntoView {
                                     </span>
                                 </label>
                                 <input
+                                    id="autoCoral"
                                     class="input input-bordered w-full"
                                     type="number"
                                     placeholder="Enter auto coral number"
-                                    name="auto_coral"
+                                    name="args[auto_coral]"
                                     value="0"
-                                    onchange="updateAutoInput('coral')"
+                                    onchange="updateAutoInput('Coral')"
+                                    onkeydown="preventMinusSign(event)"
+                                />
+                            </div>
+
+                            <div class="form-control w-full mb-8">
+                                <label class="label pb-2">
+                                    <span class="label-text text-lg font-medium">
+                                        Auto Algae Number
+                                    </span>
+                                </label>
+                                <input
+                                    id="autoAlgae"
+                                    class="input input-bordered w-full"
+                                    type="number"
+                                    placeholder="Enter auto algae number"
+                                    name="args[auto_algae]"
+                                    value="0"
+                                    onchange="updateAutoInput('Algae')"
+                                    onkeydown="preventMinusSign(event)"
                                 />
                             </div>
 
@@ -166,7 +170,7 @@ pub fn HomePage() -> impl IntoView {
                                     <input
                                         type="checkbox"
                                         class="checkbox checkbox-primary"
-                                        name="auto_leave"
+                                        name="args[auto_leave]"
                                     />
                                 </label>
                             </div>
@@ -177,7 +181,7 @@ pub fn HomePage() -> impl IntoView {
                                     <input
                                         type="checkbox"
                                         class="checkbox checkbox-primary"
-                                        name="algae_clear"
+                                        name="args[algae_clear]"
                                     />
                                 </label>
                             </div>
@@ -203,6 +207,7 @@ pub fn HomePage() -> impl IntoView {
                                             value="0"
                                             min="0"
                                             onchange="updateCoralInput('L1')"
+                                            onkeydown="preventMinusSign(event)"
                                         />
                                         <button
                                             type="button"
@@ -213,7 +218,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             type="hidden"
-                                            name="l1_coral"
+                                            name="args[l1_coral]"
                                             id="coralL1Input"
                                             value="0"
                                         />
@@ -235,6 +240,7 @@ pub fn HomePage() -> impl IntoView {
                                             min="0"
                                             max="12"
                                             onchange="updateCoralInput('L2')"
+                                            onkeydown="preventMinusSign(event)"
                                         />
                                         <button
                                             type="button"
@@ -245,7 +251,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             type="hidden"
-                                            name="l2_coral"
+                                            name="args[l2_coral]"
                                             id="coralL2Input"
                                             value="0"
                                         />
@@ -267,6 +273,7 @@ pub fn HomePage() -> impl IntoView {
                                             min="0"
                                             max="12"
                                             onchange="updateCoralInput('L3')"
+                                            onkeydown="preventMinusSign(event)"
                                         />
                                         <button
                                             type="button"
@@ -277,7 +284,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             type="hidden"
-                                            name="l3_coral"
+                                            name="args[l3_coral]"
                                             id="coralL3Input"
                                             value="0"
                                         />
@@ -299,6 +306,7 @@ pub fn HomePage() -> impl IntoView {
                                             min="0"
                                             max="12"
                                             onchange="updateCoralInput('L4')"
+                                            onkeydown="preventMinusSign(event)"
                                         />
                                         <button
                                             type="button"
@@ -309,7 +317,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             type="hidden"
-                                            name="l4_coral"
+                                            name="args[l4_coral]"
                                             id="coralL4Input"
                                             value="0"
                                         />
@@ -330,6 +338,7 @@ pub fn HomePage() -> impl IntoView {
                                             value="0"
                                             min="0"
                                             onchange="updateDroppedCoralInput()"
+                                            onkeydown="preventMinusSign(event)"
                                         />
                                         <button
                                             type="button"
@@ -340,7 +349,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             type="hidden"
-                                            name="dropped_coral"
+                                            name="args[dropped_coral]"
                                             id="coralDroppedInput"
                                             value="0"
                                         />
@@ -369,6 +378,7 @@ pub fn HomePage() -> impl IntoView {
                                             value="0"
                                             min="0"
                                             onchange="updateAlgaeInput('FloorHole')"
+                                            onkeydown="preventMinusSign(event)"
                                         />
                                         <button
                                             type="button"
@@ -379,7 +389,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             type="hidden"
-                                            name="algae_floor_hole"
+                                            name="args[algae_floor_hole]"
                                             id="algaeFloorHoleInput"
                                             value="0"
                                         />
@@ -400,6 +410,7 @@ pub fn HomePage() -> impl IntoView {
                                             value="0"
                                             min="0"
                                             onchange="updateAlgaeInput('Barge')"
+                                            onkeydown="preventMinusSign(event)"
                                         />
                                         <button
                                             type="button"
@@ -410,7 +421,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             type="hidden"
-                                            name="algae_barge"
+                                            name="args[algae_barge]"
                                             id="algaeBargeInput"
                                             value="0"
                                         />
@@ -426,7 +437,7 @@ pub fn HomePage() -> impl IntoView {
                                     <label class="label cursor-pointer justify-start gap-3 py-2 mr-5">
                                         <input
                                             type="radio"
-                                            name="climb"
+                                            name="args[climb]"
                                             value="Shallow"
                                             class="radio radio-primary"
                                             required
@@ -436,7 +447,7 @@ pub fn HomePage() -> impl IntoView {
                                     <label class="label cursor-pointer justify-start gap-3 py-2 mr-5">
                                         <input
                                             type="radio"
-                                            name="climb"
+                                            name="args[climb]"
                                             value="Deep"
                                             class="radio radio-primary"
                                             required
@@ -446,7 +457,7 @@ pub fn HomePage() -> impl IntoView {
                                     <label class="label cursor-pointer justify-start gap-3 py-2 mr-5">
                                         <input
                                             type="radio"
-                                            name="climb"
+                                            name="args[climb]"
                                             value="Park"
                                             class="radio radio-primary"
                                             required
@@ -456,7 +467,7 @@ pub fn HomePage() -> impl IntoView {
                                     <label class="label cursor-pointer justify-start gap-3 py-2 mr-5">
                                         <input
                                             type="radio"
-                                            name="climb"
+                                            name="args[climb]"
                                             value="Not Attempted"
                                             class="radio radio-primary"
                                             required
@@ -472,7 +483,7 @@ pub fn HomePage() -> impl IntoView {
                                     <input
                                         type="checkbox"
                                         class="checkbox checkbox-primary"
-                                        name="defense_bot"
+                                        name="args[defense_bot]"
                                     />
                                 </label>
                             </div>
@@ -484,7 +495,7 @@ pub fn HomePage() -> impl IntoView {
                                 <textarea
                                     class="textarea textarea-bordered w-full h-32"
                                     placeholder="Additional notes"
-                                    name="notes"
+                                    name="args[notes]"
                                 ></textarea>
                             </div>
 

@@ -13,6 +13,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         <html lang="en" data-theme="dark">
             <head>
                 <script>{include_str!("../embed/theme.js")}</script>
+                <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 // injects a stylesheet into the document <head>
