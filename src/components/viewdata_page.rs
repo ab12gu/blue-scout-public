@@ -2,7 +2,6 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Local};
 use leptos::prelude::*;
-use web_sys::InputEvent;
 
 use crate::{components::PageWrapper, DataPoint, MatchInfo, TeamData};
 
@@ -63,12 +62,13 @@ pub async fn fetch_scouting_data(
     #[cfg(feature = "ssr")]
     {
         use crate::db::get_data as get_db_data;
+        println!("Team {:?}", team_number_filter);
         get_db_data()
             .await
             .map(|x| {
                 x.into_iter()
                     .filter(|data| {
-                        team_number_filter.map_or(true, |filter| data.team_number == filter)
+                        team_number_filter.is_none_or(|filter| data.team_number == filter)
                     })
                     .collect()
             })
@@ -198,8 +198,8 @@ pub fn ViewDataPage() -> impl IntoView {
     };
 
     let data = Resource::new(
-        move || use_full_names.get(),
-        move |_| fetch_scouting_data(team_number_filter.get()),
+        move || (use_full_names.get(), team_number_filter.get()),
+        move |(_, team_number_filter_value)| fetch_scouting_data(team_number_filter_value),
     );
     let current_match = Resource::new(
         || (),
@@ -243,12 +243,15 @@ pub fn ViewDataPage() -> impl IntoView {
                                     placeholder="Enter team number"
                                     required
                                     onkeydown="preventMinusSign(event)"
-                                    on:input=move |ev| {
-                                        let team_number = event_target_value(&ev)
-                                            .parse::<u32>()
-                                            .ok();
-                                        println!("Input value: {:?}", team_number);
-                                        set_team_number_filter(team_number);
+                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                        if ev.key() == "Enter" {
+                                            let value = event_target_value(&ev);
+                                            set_team_number_filter.set(value.parse().ok());
+                                        }
+                                    }
+                                    on:blur=move |ev| {
+                                        let value = event_target_value(&ev);
+                                        set_team_number_filter.set(value.parse().ok());
                                     }
                                 />
                             </div>
