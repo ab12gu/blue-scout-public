@@ -11,6 +11,10 @@
     outline-offset: 2px;
 }
 
+.no-focus-outline:focus {
+    outline: none;
+}
+
 .transparent-num input[type="number"] {
     appearance: textfield;
     -moz-appearance: textfield;

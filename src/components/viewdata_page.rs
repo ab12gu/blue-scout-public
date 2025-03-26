@@ -239,6 +239,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                 <input
                                     name="teamNumberFilter"
                                     class="input input-bordered w-full"
+                                    style="outline: none;"
                                     type="number"
                                     placeholder="Enter team number"
                                     required
@@ -470,6 +471,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                     id="refreshNextMatch"
                                     on:click=move |_| {
                                         current_match.refetch();
+                                        data.refetch();
                                     }
                                 >
                                     <svg
