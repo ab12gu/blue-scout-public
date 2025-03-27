@@ -32,9 +32,8 @@ anyhow = { version = "1.0.97", optional = true }
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing = "0.1.41"
 duckdb = { version = "1.2.1", features = [] }
-leptos-use = { version = "0.15.7", features = ["storage"] }
-codee = "0.3.0"
 chrono = "0.4.40"
+#rust_xlsxwriter = { version = "0.85.0", features = ["chrono"], optional = true }
 
 
 [features]
@@ -44,7 +43,6 @@ ssr = [
     "dep:tokio",
     "dep:leptos_axum",
     "dep:once_cell",
-
     "dep:reqwest",
     "dep:dotenv",
     "dep:serde_json",
@@ -53,7 +51,6 @@ ssr = [
     "leptos_meta/ssr",
     "leptos_router/ssr",
     "leptos_reactive/ssr",
-    "leptos-use/ssr",
 ]
 hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen"]
 

@@ -10,6 +10,7 @@ use leptos::prelude::*;
 use leptos_meta::*;
 pub use settings_page::SettingsPage;
 pub use viewdata_page::ViewDataPage;
+pub use viewdata_page::FULL_COLUMN_NAMES;
 #[component]
 pub fn PageWrapper(children: Children) -> impl IntoView {
     view! {

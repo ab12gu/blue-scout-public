@@ -9,10 +9,13 @@ use tokio::sync::Mutex;
 
 use crate::{ClimbType, DataPoint, MatchInfo, TeamData, TeamInfo, TEAM_NAMES};
 
-static DB: OnceCell<Mutex<Connection>> = OnceCell::new();
+pub static DB: OnceCell<Mutex<Connection>> = OnceCell::new();
 
 pub fn init_db() -> duckdb::Result<()> {
     let conn = Connection::open("scouting_data.db")?;
+
+    conn.execute("INSTALL excel;", [])?;
+    conn.execute("LOAD excel;", [])?;
 
     conn.execute(
         "CREATE SEQUENCE IF NOT EXISTS scout_entries_id_seq START 1;",

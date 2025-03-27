@@ -62,7 +62,6 @@ pub async fn fetch_scouting_data(
     #[cfg(feature = "ssr")]
     {
         use crate::db::get_data as get_db_data;
-        println!("Team {:?}", team_number_filter);
         get_db_data()
             .await
             .map(|x| {
@@ -224,11 +223,8 @@ pub fn ViewDataPage() -> impl IntoView {
                                 name="fullDataCheckbox"
                                 on:input=move |ev| set_use_full_names(event_target_checked(&ev))
                             />
-                            <br />
-                            <br />
-
-                            <br />
-                            <br />
+                            <br/>
+                            <br/>
                             <div class="form-control w-full mb-8">
                                 <label
                                     class="label-text text-lg font-medium"
@@ -334,6 +330,9 @@ pub fn ViewDataPage() -> impl IntoView {
                                     </Suspense>
                                 </tbody>
                             </table>
+                            <div class="flex justify-center">
+                                <button class="btn btn-primary">Download Spreadsheet</button>
+                            </div>
                         </div>
                     </div>
                 </div>
