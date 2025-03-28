@@ -64,78 +64,102 @@ async fn init_team_names() -> anyhow::Result<()> {
 use axum::response::IntoResponse;
 
 #[cfg(feature = "ssr")]
-pub async fn generate_xlsx() -> impl IntoResponse {
-    use axum::response::Response;
-    use blue_scout::db::DB;
-    use reqwest::header::CONTENT_TYPE;
+pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
     use std::io::Cursor;
+
+    use axum::response::Response;
+    use blue_scout::{components::FULL_COLUMN_NAMES, db::DB};
+    use duckdb::arrow::datatypes::DataType;
+    use reqwest::header::CONTENT_TYPE;
+    use rust_xlsxwriter::{workbook::Workbook, Format};
 
     let conn = DB.get().unwrap().lock().await;
 
-    let mut buffer = Cursor::new(Vec::new());
+    let mut stmt = conn.prepare("SELECT * EXCLUDE(id) FROM scout_entries")?;
 
-    // Query the table's columns
-    let mut stmt = conn.prepare("PRAGMA table_info(scout_entries)").unwrap();
-    let columns = stmt
-        .query_map([], |row| {
-            let name: String = row.get(1)?;
-            let column_type: String = row.get(2)?;
-            Ok((name, column_type))
-        })
-        .unwrap();
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet().set_name("Data")?;
 
-    let mut column_names = Vec::new();
-    let mut select_columns = Vec::new();
+    let bold = Format::new().set_bold();
 
-    // Iterate through the columns and exclude 'id' while checking the type
-    for (col_name, col_type) in columns.filter_map(|col| col.ok()) {
-        if col_name != "id" {
-            column_names.push(col_name.clone());
+    worksheet.write_row_with_format(
+        0,
+        0,
+        FULL_COLUMN_NAMES
+            .iter()
+            .chain(&mut std::iter::once(&"Notes"))
+            .map(|x| x.to_string())
+            .collect::<Vec<String>>(),
+        &bold,
+    )?;
 
-            // Check if the column is of type BOOLEAN and apply the CASE conversion
-            if col_type.to_lowercase() == "boolean" {
-                select_columns.push(format!(
-                    "CASE WHEN {} THEN 'Yes' ELSE 'No' END AS {}",
-                    col_name, col_name
-                ));
-            } else {
-                select_columns.push(col_name);
-            }
+    let mut current_row = 1;
+    stmt.query_map([], |row| {
+        for i in 0..row.as_ref().column_count() {
+            let t: DataType = row.as_ref().column_type(i);
+            match t {
+                DataType::Null => worksheet
+                    .write_string(current_row, i as u16, "NULL")
+                    .unwrap(),
+                DataType::Boolean => worksheet
+                    .write_string(
+                        current_row,
+                        i as u16,
+                        if row.get::<_, bool>(i)? { "Yes" } else { "No" },
+                    )
+                    .unwrap(),
+                DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => worksheet
+                    .write_number(current_row, i as u16, row.get::<_, i64>(i)? as f64)
+                    .unwrap(),
+                DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
+                    worksheet
+                        .write_number(current_row, i as u16, row.get::<_, u64>(i)? as f64)
+                        .unwrap()
+                }
+                DataType::Float16 | DataType::Float32 | DataType::Float64 => worksheet
+                    .write_number(current_row, i as u16, row.get::<_, f64>(i)?)
+                    .unwrap(),
+                DataType::Utf8 => worksheet
+                    .write_string(current_row, i as u16, row.get::<_, String>(i)?)
+                    .unwrap(),
+                _ => unimplemented!("Unsupported data type: {:?}", t),
+            };
         }
-    }
+        current_row += 1;
+        Ok(())
+    })?
+    .count();
 
-    // Join the selected columns into a comma-separated string
-    let column_list = select_columns.join(", ");
+    worksheet.autofit_to_max_width(300);
 
-    // Build the SQL query
-    let query = format!(
-        "COPY (SELECT {} FROM scout_entries) TO 'output.xlsx' (FORMAT xlsx, SHEET 'Data', HEADER true);",
-        column_list
-    );
+    let mut buf = Cursor::new(Vec::new());
+    workbook.save_to_writer(&mut buf)?;
 
-    // Execute the query to export the data
-    conn.execute(&query, []).unwrap();
-
-    //workbook.save_to_writer(&mut buffer).unwrap();
-
-    Response::builder()
+    Ok(Response::builder()
         .header(
             CONTENT_TYPE,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        .body(axum::body::Body::from(buffer.into_inner()))
-        .unwrap()
+        .body(axum::body::Body::from(buf.into_inner()))?)
 }
 
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    use axum::{routing::get, Router};
+    use axum::{error_handling::HandleError, Router};
     use blue_scout::{app::*, db::init_db};
     use dotenv::dotenv;
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
+    use reqwest::StatusCode;
+
+    async fn handle_anyhow_error(err: anyhow::Error) -> (StatusCode, String) {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Something went wrong: {err}"),
+        )
+    }
 
     tracing_subscriber::fmt::init();
     dotenv().ok();
@@ -156,9 +180,17 @@ async fn main() {
             move || shell(leptos_options.clone())
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
-        .with_state(leptos_options);
-
-    let app = app.route("/download-xlsx", get(generate_xlsx));
+        .with_state(leptos_options)
+        .route_service(
+            "/download-xlsx",
+            HandleError::new(
+                tower::service_fn(|_req| async {
+                    let res = generate_xlsx().await?;
+                    Ok::<_, anyhow::Error>(res)
+                }),
+                handle_anyhow_error,
+            ),
+        );
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`

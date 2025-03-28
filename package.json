@@ -6,6 +6,10 @@
     "tailwindcss": "^4.0.15"
   },
   "scripts": {
-    "build": "npx @tailwindcss/cli -i tailwind.css -o public/tailwind.css --minify"
+    "build": "npx tailwindcss -i style/tailwind.css -o output/main.css --minify",
+    "watch": "npx tailwindcss -i style/tailwind.css -o output/main.css --minify --watch"
+  },
+  "devDependencies": {
+    "tablefilter": "^0.7.2"
   }
 }

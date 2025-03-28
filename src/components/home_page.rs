@@ -202,7 +202,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             id="coralL1Count"
-                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num mr-3"
+                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
                                             value="0"
                                             min="0"
@@ -234,7 +234,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             id="coralL2Count"
-                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num mr-3"
+                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
                                             value="0"
                                             min="0"
@@ -267,7 +267,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             id="coralL3Count"
-                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num mr-3"
+                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
                                             value="0"
                                             min="0"
@@ -300,7 +300,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             id="coralL4Count"
-                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num mr-3"
+                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
                                             value="0"
                                             min="0"
@@ -333,7 +333,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             id="coralDroppedCount"
-                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num mr-3"
+                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
                                             value="0"
                                             min="0"
@@ -373,7 +373,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             id="algaeFloorHoleCount"
-                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num mr-3"
+                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
                                             value="0"
                                             min="0"
@@ -405,7 +405,7 @@ pub fn HomePage() -> impl IntoView {
                                         </button>
                                         <input
                                             id="algaeBargeCount"
-                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num mr-3"
+                                            class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
                                             value="0"
                                             min="0"

@@ -9,11 +9,14 @@ const CURRENT_EVENT: &str = "2025wabon";
 const CURRENT_MATCH: usize = 1;
 
 #[server(endpoint = "fetch_match_data")]
-pub async fn fetch_match_data(match_number: u32) -> Result<MatchInfo, ServerFnError> {
+pub async fn fetch_match_data(
+    match_number: u32,
+    event: String,
+) -> Result<MatchInfo, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use crate::db::get_match_info;
-        get_match_info(match_number, CURRENT_EVENT)
+        get_match_info(match_number, &event)
             .await
             .map_err(ServerFnError::new)
     }
@@ -202,10 +205,17 @@ pub fn ViewDataPage() -> impl IntoView {
     );
     let current_match = Resource::new(
         || (),
-        |_| async move { fetch_match_data(CURRENT_MATCH as u32).await.ok() },
+        |_| async move {
+            fetch_match_data(CURRENT_MATCH as u32, CURRENT_EVENT.to_string())
+                .await
+                .ok()
+        },
     );
 
     view! {
+        <Suspense>
+            <script src="/tablefilter/tablefilter.js"></script>
+        </Suspense>
         <script src="/viewdata_page.js"></script>
         <PageWrapper>
             <div class="container mx-auto">
@@ -223,8 +233,8 @@ pub fn ViewDataPage() -> impl IntoView {
                                 name="fullDataCheckbox"
                                 on:input=move |ev| set_use_full_names(event_target_checked(&ev))
                             />
-                            <br/>
-                            <br/>
+                            <br />
+                            <br />
                             <div class="form-control w-full mb-8">
                                 <label
                                     class="label-text text-lg font-medium"
@@ -252,7 +262,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                     }
                                 />
                             </div>
-                            <table class="table">
+                            <table class="table" id="scouting_data_table">
                                 <thead>
                                     <tr>{move || column_names()}</tr>
                                 </thead>
@@ -330,8 +340,15 @@ pub fn ViewDataPage() -> impl IntoView {
                                     </Suspense>
                                 </tbody>
                             </table>
+                            <br />
                             <div class="flex justify-center">
-                                <button class="btn btn-primary">Download Spreadsheet</button>
+                                <a
+                                    href="/download-xlsx"
+                                    class="btn btn-primary"
+                                    download="data.xlsx"
+                                >
+                                    Download Spreadsheet
+                                </a>
                             </div>
                         </div>
                     </div>

@@ -1,6 +1,8 @@
 #![feature(let_chains)]
 #![recursion_limit = "256"]
 
+pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
+
 use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
@@ -15,9 +17,25 @@ pub static TEAM_NAMES: std::sync::OnceLock<Vec<Option<String>>> = std::sync::Onc
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {
+    use web_sys::js_sys;
+
     use crate::app::*;
     console_error_panic_hook::set_once();
     leptos::mount::hydrate_body(App);
+
+    let window = leptos::prelude::window();
+    js_sys::Reflect::set(
+        &window,
+        &wasm_bindgen::JsValue::from_str(LEPTOS_HYDRATED),
+        &wasm_bindgen::JsValue::TRUE,
+    )
+    .expect("error setting hydrated status");
+    let event = web_sys::Event::new(LEPTOS_HYDRATED).expect("error creating hydrated event");
+    let document = leptos::prelude::document();
+    document
+        .dispatch_event(&event)
+        .expect("error dispatching hydrated event");
+    leptos::logging::log!("dispatched hydrated event");
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
