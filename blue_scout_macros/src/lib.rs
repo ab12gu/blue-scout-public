@@ -1,10 +1,7 @@
 #![feature(let_chains)]
-use lazy_static::lazy_static;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use std::collections::HashMap;
 use std::fmt::Write as _;
-use std::sync::Mutex;
 use syn::{
     Expr, Ident, LitStr, Result, Token, Type, TypePath,
     parse::{Parse, ParseStream},
@@ -12,12 +9,6 @@ use syn::{
     punctuated::Punctuated,
     token::Comma,
 };
-
-// Global storage for reduced columns
-lazy_static! {
-    static ref REDUCED_COLUMNS: Mutex<HashMap<String, Vec<(String, String)>>> =
-        Mutex::new(HashMap::new());
-}
 
 // Define a struct for a field declaration with optional pretty name
 struct FieldDecl {
@@ -162,12 +153,6 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
 
     // Get the struct name
     let struct_name = &input.name;
-    let struct_name_str = struct_name.to_string();
-
-    // Clear any existing reduced columns for this struct
-    if let Ok(mut columns) = REDUCED_COLUMNS.lock() {
-        columns.remove(&struct_name_str);
-    }
 
     // Create a constant name based on the struct name (e.g., Person -> PERSON_FIELDS)
     let const_name = Ident::new(
@@ -244,6 +229,12 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
             get_data_type_variant(&field.ty).unwrap_or(Ident::new("Unknown", field.name.span()));
 
         quote! { (#name, DataTypeName::#type_variant) }
+    });
+
+    let field_names = input.fields.iter().map(|field| {
+        let name = field.name.to_string();
+
+        quote! { #name }
     });
 
     // Generate field names and pretty names
@@ -452,8 +443,8 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
             }
 
             /// Get just the field names
-            pub fn field_names() -> Vec<&'static str> {
-                #const_name.iter().map(|(name, _)| *name).collect()
+            pub fn field_names() -> &'static [&'static str] {
+                &[#(#field_names,)*]
             }
 
             /// Get pretty name for a field
@@ -630,7 +621,7 @@ pub fn define_team_data(input: TokenStream) -> TokenStream {
         impl #struct_name {
             pub fn view_team_data(v: &[#struct_name]) -> leptos::prelude::AnyView {
                 use leptos::prelude::*;
-                view!{ <div class="team-data">{(&[#(#team_data_closures),*]).into_any()}</div> }.into_any()
+                view!{ <div class="team-data">{(vec![#(#team_data_closures),*]).into_any()}</div> }.into_any()
             }
         }
     };

@@ -7,9 +7,48 @@ use reqwest::header;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{data::DataPoint, MatchInfo, TeamInfo, TEAM_NAMES};
+use crate::{
+    data::{DataPoint, DataTypeName},
+    MatchInfo, TeamInfo, TEAM_NAMES,
+};
 
 pub static DB: OnceCell<Mutex<Connection>> = OnceCell::new();
+
+pub async fn migrate_db() -> duckdb::Result<()> {
+    let conn = DB.get().expect("Database not initialized").lock().await;
+
+    // Get current columns in the table
+    let mut stmt = conn
+        .prepare("SELECT * FROM information_schema.columns WHERE table_name = 'scout_entries'")?;
+    let existing_columns: Vec<String> = stmt
+        .query_map([], |row| Ok(row.get::<_, String>(3)?))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Get expected columns from DataPoint's metadata
+    for (column_name, data_type) in DataPoint::get_columns() {
+        if !existing_columns.contains(&column_name.to_string()) {
+            let sql_type = match data_type {
+                DataTypeName::U16 => "SMALLINT",
+                DataTypeName::U32 => "INTEGER",
+                DataTypeName::U64 => "BIGINT",
+                DataTypeName::I16 => "SMALLINT",
+                DataTypeName::I32 => "INTEGER",
+                DataTypeName::I64 => "BIGINT",
+                DataTypeName::String => "VARCHAR",
+                DataTypeName::Bool => "BOOLEAN",
+                DataTypeName::Float => "REAL",
+            };
+
+            let alter_sql = format!(
+                "ALTER TABLE scout_entries ADD COLUMN {} {}",
+                column_name, sql_type
+            );
+            conn.execute(&alter_sql, [])?;
+        }
+    }
+
+    Ok(())
+}
 
 pub fn init_db() -> duckdb::Result<()> {
     let conn = Connection::open("scouting_data.db")?;
