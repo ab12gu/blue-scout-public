@@ -1,3 +1,4 @@
+#![feature(let_chains)]
 use lazy_static::lazy_static;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
@@ -196,6 +197,46 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
         quote! { pub #name: #ty }
     });
 
+    // Generate the field definitions for the InsertDataArgs, which replaces bool with Option<String>
+    let insert_data_args_fields = input.fields.iter().map(|field| {
+        let name = &field.name;
+        let ty = &field.ty;
+        if let Type::Path(TypePath { path, .. }) = ty
+            && let Some(segment) = path.segments.last()
+            && segment.ident == "bool"
+        {
+            quote! { pub #name: Option<String> }
+        } else {
+            quote! { pub #name: #ty }
+        }
+    });
+
+    let insert_data_args_map = input.fields.iter().map(|field| {
+        let name = &field.name;
+        let ty = &field.ty;
+        if let Type::Path(TypePath { path, .. }) = ty
+            && let Some(segment) = path.segments.last()
+            && segment.ident == "bool"
+        {
+            quote! { #name: extract_checkbox(self.#name) }
+        } else {
+            quote! { #name: self.#name }
+        }
+    });
+
+    let insert_data_args_map_fn = quote! {
+        pub fn map_insert_data_args(self) -> #struct_name {
+            #[inline]
+            #[allow(dead_code)]
+            fn extract_checkbox(value: Option<String>) -> bool {
+                value.map(|x| x == "on").unwrap_or(false)
+            }
+            #struct_name {
+                #(#insert_data_args_map),*
+            }
+        }
+    };
+
     // Get field names and types for the constant
     let field_name_types = input.fields.iter().map(|field| {
         let name = field.name.to_string();
@@ -356,25 +397,21 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
         }
     });
 
-    // // Generate the reduced column implementations - initially empty
-    // let reduced_column_impl = quote! {
-    //     /// Get the reduced column names
-    //     pub fn reduced_column_names() -> Vec<&'static str> {
-    //         vec![]
-    //     }
-
-    //     /// Get the value for a reduced column
-    //     pub fn get_reduced_column(&self, _column_name: &str) -> Option<String> {
-    //         None
-    //     }
-    // };
-
     // Generate implementation
     let output = quote! {
         // Define the struct with public fields
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
         pub struct #struct_name {
             #(#fields),*
+        }
+
+        #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+        pub struct InsertDataArgs {
+            #(#insert_data_args_fields),*
+        }
+
+        impl InsertDataArgs {
+            #insert_data_args_map_fn
         }
 
         // Define a constant with field name and type pairs
@@ -508,14 +545,14 @@ pub fn define_reduced_columns(input: TokenStream) -> TokenStream {
                 Self::reduced_column_names()
                     .into_iter()
                     .filter_map(|name| {
-                        self.get_reduced_column(name).map(|value| (name, value))
+                        self.get_reduced_column(name).map(|value| (*name, value))
                     })
                     .collect()
             }
 
             /// Get the reduced column names
-            pub fn reduced_column_names() -> Vec<&'static str> {
-                vec![#(#column_names),*]
+            pub const fn reduced_column_names() -> &'static [&'static str] {
+                &[#(#column_names),*]
             }
 
             /// Get the value for a reduced column
@@ -570,6 +607,76 @@ impl Parse for ReducedColumnsInput {
         }
 
         Ok(ReducedColumnsInput {
+            struct_name,
+            columns,
+        })
+    }
+}
+
+#[proc_macro]
+pub fn define_team_data(input: TokenStream) -> TokenStream {
+    // Parse the struct name and reduced column definitions
+    let parsed = parse_macro_input!(input as TeamDataInput);
+    let struct_name = parsed.struct_name;
+
+    let team_data_closures = parsed.columns.iter().map(|col| {
+        let expr = &col.expr;
+        let column_name = col.name.value();
+        quote! { leptos::html::p().child(format!("{}: {}", #column_name, #expr)) }
+    });
+
+    // Generate the implementation
+    let output = quote! {
+        impl #struct_name {
+            pub fn view_team_data(v: &[#struct_name]) -> leptos::prelude::AnyView {
+                use leptos::prelude::*;
+                view!{ <div class="team-data">{(&[#(#team_data_closures),*]).into_any()}</div> }.into_any()
+            }
+        }
+    };
+
+    output.into()
+}
+
+// Define structures for parsing reduced columns input
+struct TeamDataInput {
+    struct_name: Ident,
+    columns: Vec<TeamDataDef>,
+}
+
+struct TeamDataDef {
+    name: LitStr,
+    expr: Expr,
+}
+
+impl Parse for TeamDataInput {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let struct_name = input.parse()?;
+        input.parse::<Token![,]>()?;
+
+        let mut columns = Vec::new();
+
+        while !input.is_empty() {
+            // Parse column name (string literal)
+            let name: LitStr = input.parse()?;
+
+            // Parse arrow
+            input.parse::<Token![=>]>()?;
+
+            // Parse expression
+            let expr = input.parse()?;
+
+            columns.push(TeamDataDef { name, expr });
+
+            // Skip comma if present
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(TeamDataInput {
             struct_name,
             columns,
         })

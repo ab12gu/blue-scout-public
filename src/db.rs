@@ -7,7 +7,7 @@ use reqwest::header;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{data::DataPoint, MatchInfo, TeamData, TeamInfo, TEAM_NAMES};
+use crate::{data::DataPoint, MatchInfo, TeamInfo, TEAM_NAMES};
 
 pub static DB: OnceCell<Mutex<Connection>> = OnceCell::new();
 
@@ -212,54 +212,18 @@ pub async fn get_match_info(match_number: u32, event: &str) -> Result<MatchInfo,
             }
             continue;
         }
-        let avg_coral = data
-            .iter()
-            .map(|x| (x.l4_coral + x.l3_coral + x.l2_coral + x.l1_coral) as u32)
-            .sum::<u32>() as f64
-            / data.len() as f64;
-        let avg_auto_coral =
-            data.iter().map(|x| x.auto_coral as u32).sum::<u32>() as f64 / data.len() as f64;
-        let avg_barge_algae =
-            data.iter().map(|x| x.algae_barge as u32).sum::<u32>() as f64 / data.len() as f64;
-        let avg_floor_algae =
-            data.iter().map(|x| x.algae_floor_hole as u32).sum::<u32>() as f64 / data.len() as f64;
-        let (score_l1, score_l2, score_l3, score_l4) = (
-            data.iter().filter(|x| x.l1_coral > 0).count() as u32,
-            data.iter().filter(|x| x.l2_coral > 0).count() as u32,
-            data.iter().filter(|x| x.l3_coral > 0).count() as u32,
-            data.iter().filter(|x| x.l4_coral > 0).count() as u32,
-        );
-        let sum_of_deep_climbs = data
-            .iter()
-            .map(|x| (&x.climb == "Deep") as usize)
-            .sum::<usize>() as u32;
-        let sum_of_climb_not_attempted = data
-            .iter()
-            .map(|x| (&x.climb == "Not Attempted") as usize)
-            .sum::<usize>() as u32;
-        let team_data = TeamData {
-            avg_coral,
-            avg_auto_coral,
-            avg_barge_algae,
-            avg_floor_algae,
-            score_l1,
-            score_l2,
-            score_l3,
-            score_l4,
-            sum_of_deep_climbs,
-            sum_of_climb_not_attempted,
-        };
+
         if is_blue_team {
             match_info.blue[team_index] = TeamInfo {
                 team_number,
                 team_name,
-                team_data: Some(team_data),
+                team_data: Some(data),
             };
         } else {
             match_info.red[team_index] = TeamInfo {
                 team_number,
                 team_name,
-                team_data: Some(team_data),
+                team_data: Some(data),
             };
         }
     }

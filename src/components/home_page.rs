@@ -1,62 +1,14 @@
 use leptos::prelude::*;
 use leptos_meta::*;
 
-use crate::components::PageWrapper;
-
-#[inline]
-#[allow(dead_code)]
-pub fn extract_checkbox(value: Option<String>) -> bool {
-    value.map(|x| x == "on").unwrap_or(false)
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub struct InsertDataArgs {
-    name: String,
-    match_number: u16,
-    team_number: u32,
-    auto_coral: u16,
-    auto_algae: u16,
-    auto_leave: Option<String>,
-    algae_clear: Option<String>,
-    l1_coral: u16,
-    l2_coral: u16,
-    l3_coral: u16,
-    l4_coral: u16,
-    dropped_coral: u16,
-    algae_barge: u16,
-    algae_floor_hole: u16,
-    climb: String,
-    defense_bot: Option<String>,
-    notes: String,
-}
+use crate::{components::PageWrapper, data::InsertDataArgs};
 
 #[server]
-#[allow(clippy::too_many_arguments)]
 pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::{data::DataPoint, db::insert_form_data};
-        let data_point = DataPoint {
-            name: args.name,
-            match_number: args.match_number,
-            team_number: args.team_number,
-            auto_coral: args.auto_coral,
-            auto_algae: args.auto_algae,
-            auto_leave: extract_checkbox(args.auto_leave),
-            algae_clear: extract_checkbox(args.algae_clear),
-            l1_coral: args.l1_coral,
-            l2_coral: args.l2_coral,
-            l3_coral: args.l3_coral,
-            l4_coral: args.l4_coral,
-            dropped_coral: args.dropped_coral,
-            algae_barge: args.algae_barge,
-            algae_floor_hole: args.algae_floor_hole,
-            climb: args.climb,
-            defense_bot: extract_checkbox(args.defense_bot),
-            notes: args.notes,
-        };
-
-        insert_form_data(data_point).await?;
+        use crate::db::insert_form_data;
+        insert_form_data(args.map_insert_data_args()).await?;
 
         Ok(())
     }
@@ -70,7 +22,6 @@ pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
 #[component]
 pub fn HomePage() -> impl IntoView {
     let insert_data = ServerAction::<InsertData>::new();
-
     view! {
         <Script src="/home.js"></Script>
         <PageWrapper>
@@ -92,7 +43,6 @@ pub fn HomePage() -> impl IntoView {
                                     required
                                 />
                             </div>
-
                             <div class="form-control w-full mb-8">
                                 <label class="label pb-2">
                                     <span class="label-text text-lg font-medium">Match Number</span>

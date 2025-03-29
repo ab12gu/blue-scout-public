@@ -3,6 +3,9 @@
 
 pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
 
+use std::sync::atomic::AtomicBool;
+
+use data::DataPoint;
 use serde::{Deserialize, Serialize};
 //#![allow(dead_code, unused_variables)]
 pub mod app;
@@ -13,9 +16,13 @@ pub mod db;
 #[cfg(feature = "ssr")]
 pub static TEAM_NAMES: std::sync::OnceLock<Vec<Option<String>>> = std::sync::OnceLock::new();
 
+pub static HYDRATED: AtomicBool = AtomicBool::new(false);
+
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {
+    use std::sync::atomic::Ordering;
+
     use web_sys::js_sys;
 
     use crate::app::*;
@@ -34,28 +41,15 @@ pub fn hydrate() {
     document
         .dispatch_event(&event)
         .expect("error dispatching hydrated event");
+    HYDRATED.store(true, Ordering::Relaxed);
     leptos::logging::log!("dispatched hydrated event");
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct TeamData {
-    avg_coral: f64,
-    avg_auto_coral: f64,
-    avg_barge_algae: f64,
-    avg_floor_algae: f64,
-    score_l1: u32,
-    score_l2: u32,
-    score_l3: u32,
-    score_l4: u32,
-    sum_of_deep_climbs: u32,
-    sum_of_climb_not_attempted: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TeamInfo {
     team_number: u32,
     team_name: Option<String>,
-    team_data: Option<TeamData>,
+    team_data: Option<Vec<DataPoint>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

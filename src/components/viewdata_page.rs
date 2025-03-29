@@ -3,7 +3,7 @@ use std::ops::Deref;
 use chrono::{DateTime, Local};
 use leptos::prelude::*;
 
-use crate::{components::PageWrapper, data::DataPoint, MatchInfo, TeamData};
+use crate::{components::PageWrapper, data::DataPoint, MatchInfo};
 
 const CURRENT_EVENT: &str = "2025wabon";
 const CURRENT_MATCH: usize = 1;
@@ -50,42 +50,13 @@ fn display_bool(b: bool) -> String {
     }
 }
 
-fn display_team_data(team_data: &TeamData) -> AnyView {
-    view! {
-        <div class="team-data">
-            <p>Avg Coral: {format!("{:.1}", team_data.avg_coral)}</p>
-            <p>Avg Auto Coral: {format!("{:.1}", team_data.avg_auto_coral)}</p>
-            <p>Avg Barge Algae: {format!("{:.1}", team_data.avg_barge_algae)}</p>
-            <p>
-                Scoring Locations:
-                {
-                    let locations = [
-                        ("L1", team_data.score_l1),
-                        ("L2", team_data.score_l2),
-                        ("L3", team_data.score_l3),
-                        ("L4", team_data.score_l4),
-                    ]
-                        .iter()
-                        .filter_map(|x| if x.1 > 0 { Some(x.0) } else { None })
-                        .collect::<Vec<&str>>()
-                        .join(", ");
-                    if locations.is_empty() { "None".to_string() } else { locations }
-                }
-            </p>
-            <p>Sum of Deep Climbs: {team_data.sum_of_deep_climbs.to_string()}</p>
-            <p>Sum of Climb Not Attempted: {team_data.sum_of_climb_not_attempted.to_string()}</p>
-        </div>
-    }
-    .into_any()
-}
-
 macro_rules! team_data_view {
     ($current_match:expr, $team:ident, $index:expr) => {
         move || match $current_match.get() {
             Some(Some(match_data)) => {
                 let team_data = &match_data.$team[$index];
-                match team_data.team_data {
-                    Some(data) => display_team_data(&data),
+                match &team_data.team_data {
+                    Some(data) => DataPoint::view_team_data(data),
                     None => view! {
                         <span class="team-number">No stats available</span>
                     }
