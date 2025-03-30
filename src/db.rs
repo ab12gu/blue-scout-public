@@ -146,7 +146,7 @@ pub async fn get_match_info(match_number: u32, event: &str) -> Result<MatchInfo,
     let conn = db.lock().await;
 
     let mut stmt = conn
-        .prepare("SELECT * FROM scout_entries WHERE team_number = ?1 OR team_number = ?2 OR team_number = ?3 OR team_number = ?4 OR team_number = ?5 OR team_number = ?6")?;
+    .prepare("SELECT * FROM scout_entries WHERE team_number = ?1 OR team_number = ?2 OR team_number = ?3 OR team_number = ?4 OR team_number = ?5 OR team_number = ?6")?;
     let entry_iter = stmt.query_map(
         [
             &red_team[0],
