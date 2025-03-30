@@ -3,12 +3,11 @@
 
 pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
 
-use std::{fmt::Display, str::FromStr};
-
 use serde::{Deserialize, Serialize};
 //#![allow(dead_code, unused_variables)]
 pub mod app;
 pub mod components;
+pub mod data;
 pub mod db;
 
 #[cfg(feature = "ssr")]
@@ -36,62 +35,6 @@ pub fn hydrate() {
         .dispatch_event(&event)
         .expect("error dispatching hydrated event");
     leptos::logging::log!("dispatched hydrated event");
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct DataPoint {
-    pub name: String,
-    pub match_number: u16,
-    pub team_number: u32,
-    pub auto_coral: u16,
-    pub auto_algae: u16,
-    pub auto_leave: bool,
-    pub algae_clear: bool,
-    pub l1_coral: u16,
-    pub l2_coral: u16,
-    pub l3_coral: u16,
-    pub l4_coral: u16,
-    pub dropped_coral: u16,
-    pub algae_barge: u16,
-    pub algae_floor_hole: u16,
-    pub climb: ClimbType,
-    pub defense_bot: bool,
-    pub notes: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ClimbType {
-    Deep,
-    Shallow,
-    Park,
-    NotAttempted,
-    Unknown,
-}
-
-impl Display for ClimbType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ClimbType::Deep => write!(f, "Deep"),
-            ClimbType::Shallow => write!(f, "Shallow"),
-            ClimbType::Park => write!(f, "Park"),
-            ClimbType::NotAttempted => write!(f, "Not Attempted"),
-            ClimbType::Unknown => write!(f, "Unknown"),
-        }
-    }
-}
-
-impl FromStr for ClimbType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "Deep" => Ok(ClimbType::Deep),
-            "Shallow" => Ok(ClimbType::Shallow),
-            "Park" => Ok(ClimbType::Park),
-            "Not Attempted" => Ok(ClimbType::NotAttempted),
-            _ => Err(format!("Invalid ClimbType: {}", s)),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]

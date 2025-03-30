@@ -35,8 +35,7 @@ pub struct InsertDataArgs {
 pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::{db::insert_form_data, ClimbType, DataPoint};
-        use std::str::FromStr;
+        use crate::{data::DataPoint, db::insert_form_data};
         let data_point = DataPoint {
             name: args.name,
             match_number: args.match_number,
@@ -52,13 +51,7 @@ pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
             dropped_coral: args.dropped_coral,
             algae_barge: args.algae_barge,
             algae_floor_hole: args.algae_floor_hole,
-            climb: match ClimbType::from_str(&args.climb) {
-                Ok(climb_type) => climb_type,
-                Err(_) => {
-                    tracing::error!("Unknown Climb Type: {}", &args.climb);
-                    ClimbType::Unknown
-                }
-            },
+            climb: args.climb,
             defense_bot: extract_checkbox(args.defense_bot),
             notes: args.notes,
         };

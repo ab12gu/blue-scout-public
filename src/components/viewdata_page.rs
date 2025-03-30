@@ -3,7 +3,7 @@ use std::ops::Deref;
 use chrono::{DateTime, Local};
 use leptos::prelude::*;
 
-use crate::{components::PageWrapper, DataPoint, MatchInfo, TeamData};
+use crate::{components::PageWrapper, data::DataPoint, MatchInfo, TeamData};
 
 const CURRENT_EVENT: &str = "2025wabon";
 const CURRENT_MATCH: usize = 1;
@@ -27,54 +27,12 @@ pub async fn fetch_match_data(
     }
 }
 
-pub const FULL_COLUMN_NAMES: &[&str] = &[
-    "Name",
-    "Match",
-    "Team",
-    "Auto Coral",
-    "Auto Algae",
-    "Auto Leave",
-    "Algae Clear",
-    "L1",
-    "L2",
-    "L3",
-    "L4",
-    "Dropped",
-    "Barge",
-    "Floor Hole",
-    "Climb",
-    "Defense",
-];
-
-pub const REDUCED_COLUMN_NAMES: &[&str] = &[
-    "Match",
-    "Team",
-    "Auto Coral",
-    "Auto Leave",
-    "Algae Clear",
-    "Teleop Coral",
-    "Teleop Algae",
-    "Climb",
-    "Defense",
-];
-
 #[server(endpoint = "fetch_scouting_data")]
-pub async fn fetch_scouting_data(
-    team_number_filter: Option<u32>,
-) -> Result<Vec<DataPoint>, ServerFnError> {
+pub async fn fetch_scouting_data() -> Result<Vec<DataPoint>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use crate::db::get_data as get_db_data;
-        get_db_data()
-            .await
-            .map(|x| {
-                x.into_iter()
-                    .filter(|data| {
-                        team_number_filter.is_none_or(|filter| data.team_number == filter)
-                    })
-                    .collect()
-            })
-            .map_err(ServerFnError::new)
+        get_db_data().await.map_err(ServerFnError::new)
     }
     #[cfg(not(feature = "ssr"))]
     {
@@ -186,23 +144,26 @@ fn format_timestamp(timestamp: i64) -> String {
 #[component]
 pub fn ViewDataPage() -> impl IntoView {
     let (use_full_names, set_use_full_names) = signal(false);
-    let (team_number_filter, set_team_number_filter) = signal(None::<u32>);
 
     let column_names = move || {
-        (if use_full_names() {
-            FULL_COLUMN_NAMES
+        if use_full_names() {
+            DataPoint::field_pretty_names()
+                .iter()
+                .map(|(_, name)| view! { <th>{name.to_string()}</th> })
+                .collect_view()
         } else {
-            REDUCED_COLUMN_NAMES
-        })
-        .iter()
-        .map(|name| view! { <th>{name.to_string()}</th> })
-        .collect_view()
+            DataPoint::reduced_column_names()
+                .iter()
+                .map(|name| view! { <th>{name.to_string()}</th> })
+                .collect_view()
+            // REDUCED_COLUMN_NAMES
+            //     .iter()
+            //     .map(|name| view! { <th>{name.to_string()}</th> })
+            //     .collect_view()
+        }
     };
 
-    let data = Resource::new(
-        move || (use_full_names.get(), team_number_filter.get()),
-        move |(_, team_number_filter_value)| fetch_scouting_data(team_number_filter_value),
-    );
+    let data = Resource::new(move || use_full_names.get(), move |_| fetch_scouting_data());
     let current_match = Resource::new(
         || (),
         |_| async move {
@@ -231,37 +192,11 @@ pub fn ViewDataPage() -> impl IntoView {
                                 type="checkbox"
                                 id="fullDataCheckbox"
                                 name="fullDataCheckbox"
+                                onclick="window.reloadTableFilter()"
                                 on:input=move |ev| set_use_full_names(event_target_checked(&ev))
                             />
                             <br />
                             <br />
-                            <div class="form-control w-full mb-8">
-                                <label
-                                    class="label-text text-lg font-medium"
-                                    for="teamNumberFilter"
-                                >
-                                    Team Number Filter
-                                </label>
-                                <input
-                                    name="teamNumberFilter"
-                                    class="input input-bordered w-full"
-                                    style="outline: none;"
-                                    type="number"
-                                    placeholder="Enter team number"
-                                    required
-                                    onkeydown="preventMinusSign(event)"
-                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                        if ev.key() == "Enter" {
-                                            let value = event_target_value(&ev);
-                                            set_team_number_filter.set(value.parse().ok());
-                                        }
-                                    }
-                                    on:blur=move |ev| {
-                                        let value = event_target_value(&ev);
-                                        set_team_number_filter.set(value.parse().ok());
-                                    }
-                                />
-                            </div>
                             <table class="table" id="scouting_data_table">
                                 <thead>
                                     <tr>{move || column_names()}</tr>
@@ -278,41 +213,25 @@ pub fn ViewDataPage() -> impl IntoView {
                                                         view! {
                                                             <tr class="hover:bg-base-300">
                                                                 {if use_full_names.get() {
-                                                                    view! {
-                                                                        <td>{item.name.clone()}</td>
-                                                                        <td>{item.match_number}</td>
-                                                                        <td>{item.team_number}</td>
-                                                                        <td>{item.auto_coral}</td>
-                                                                        <td>{item.auto_algae}</td>
-                                                                        <td>{display_bool(item.auto_leave)}</td>
-                                                                        <td>{display_bool(item.algae_clear)}</td>
-                                                                        <td>{item.l1_coral}</td>
-                                                                        <td>{item.l2_coral}</td>
-                                                                        <td>{item.l3_coral}</td>
-                                                                        <td>{item.l4_coral}</td>
-                                                                        <td>{item.dropped_coral}</td>
-                                                                        <td>{item.algae_barge}</td>
-                                                                        <td>{item.algae_floor_hole}</td>
-                                                                        <td>{item.climb.to_string()}</td>
-                                                                        <td>{display_bool(item.defense_bot)}</td>
-                                                                    }
-                                                                        .into_any()
+                                                                    DataPoint::field_names().iter().map(|name| {
+                                                                        let value = item.get_field(name).unwrap();
+                                                                        let string_value = match value {
+                                                                            crate::data::DataType::U16(val) => val.to_string(),
+                                                                            crate::data::DataType::U32(val) => val.to_string(),
+                                                                            crate::data::DataType::U64(val) => val.to_string(),
+                                                                            crate::data::DataType::I16(val) => val.to_string(),
+                                                                            crate::data::DataType::I32(val) => val.to_string(),
+                                                                            crate::data::DataType::I64(val) => val.to_string(),
+                                                                            crate::data::DataType::String(val) => val,
+                                                                            crate::data::DataType::Bool(val) => display_bool(val),
+                                                                            crate::data::DataType::Float(val) => format!("{:.2}", val),
+                                                                        };
+                                                                        view! { <td>{string_value}</td> }
+                                                                    }).collect_view().into_any()
                                                                 } else {
-                                                                    view! {
-                                                                        <td>{item.match_number}</td>
-                                                                        <td>{item.team_number}</td>
-                                                                        <td>{item.auto_coral}</td>
-                                                                        <td>{display_bool(item.auto_leave)}</td>
-                                                                        <td>{display_bool(item.algae_clear)}</td>
-                                                                        <td>
-                                                                            {item.l1_coral + item.l2_coral + item.l3_coral
-                                                                                + item.l4_coral}
-                                                                        </td>
-                                                                        <td>{item.algae_barge + item.algae_floor_hole}</td>
-                                                                        <td>{item.climb.to_string()}</td>
-                                                                        <td>{display_bool(item.defense_bot)}</td>
-                                                                    }
-                                                                        .into_any()
+                                                                    item.get_reduced_columns().iter().map(|(_, value)|  {
+                                                                        view! { <td>{value.clone()}</td> }
+                                                                    }).collect_view().into_any()
                                                                 }}
                                                             </tr>
                                                         }

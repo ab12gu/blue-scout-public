@@ -68,7 +68,7 @@ pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
     use std::io::Cursor;
 
     use axum::response::Response;
-    use blue_scout::{components::FULL_COLUMN_NAMES, db::DB};
+    use blue_scout::{data::DataPoint, db::DB};
     use duckdb::arrow::datatypes::DataType;
     use reqwest::header::CONTENT_TYPE;
     use rust_xlsxwriter::{workbook::Workbook, Format};
@@ -85,10 +85,9 @@ pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
     worksheet.write_row_with_format(
         0,
         0,
-        FULL_COLUMN_NAMES
+        DataPoint::field_pretty_names()
             .iter()
-            .chain(&mut std::iter::once(&"Notes"))
-            .map(|x| x.to_string())
+            .map(|(_, x)| x.to_string())
             .collect::<Vec<String>>(),
         &bold,
     )?;

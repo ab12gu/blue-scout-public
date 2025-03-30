@@ -36,10 +36,32 @@ document.addEventListener("_leptos_hydrated", function (event) {
       },
     ],
   });
-  tf.init();
-  waitForElm(".flt").then((elem) => {
-    for (let val of document.querySelectorAll(".flt")) {
-      val.className = "input input-primary";
-    }
-  });
+  window.tf = tf;
+  function reloadTableFilter() {
+    window.tf.destroy();
+    setTimeout(function () {
+      const tf = new TableFilter(
+        document.getElementById("scouting_data_table"),
+        {
+          base_path: "tablefilter/",
+          sticky_headers: true,
+          rows_counter: true,
+          themes: [
+            {
+              name: "transparent",
+            },
+          ],
+        },
+      );
+      window.tf = tf;
+      tf.init();
+      waitForElm(".flt").then((_) => {
+        for (let val of document.querySelectorAll(".flt")) {
+          val.className = "input input-primary";
+        }
+      });
+    }, 250);
+  }
+  window.reloadTableFilter = reloadTableFilter;
+  reloadTableFilter();
 });
