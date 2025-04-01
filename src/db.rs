@@ -1,6 +1,7 @@
 #![cfg(feature = "ssr")]
 use std::collections::HashMap;
 
+use chrono::Datelike;
 use duckdb::Connection;
 use once_cell::sync::OnceCell;
 use reqwest::header;
@@ -9,7 +10,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     data::{DataPoint, DataTypeName},
-    MatchInfo, TeamInfo, TEAM_NAMES,
+    EventInfo, MatchInfo, TeamInfo, TEAM_NAMES,
 };
 
 pub static DB: OnceCell<Mutex<Connection>> = OnceCell::new();
@@ -280,4 +281,28 @@ pub async fn get_match_info(match_number: u32, event: &str) -> Result<MatchInfo,
     match_info.predicted_time = target_match.predicted_time;
 
     Ok(match_info)
+}
+
+pub async fn get_events() -> Result<Vec<EventInfo>, anyhow::Error> {
+    let mut headers = header::HeaderMap::new();
+    headers.insert("accept", "application/json".parse()?);
+    headers.insert("X-TBA-Auth-Key", std::env::var("TBA_API_KEY")?.parse()?);
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let events: Vec<EventInfo> = serde_json::from_str(
+        &client
+            .get(format!(
+                "https://www.thebluealliance.com/api/v3/district/{}pnw/events",
+                chrono::Utc::now().year()
+            ))
+            .headers(headers)
+            .send()
+            .await?
+            .text()
+            .await?,
+    )?;
+
+    Ok(events)
 }

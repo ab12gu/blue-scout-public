@@ -2,13 +2,8 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Local};
 use leptos::prelude::*;
-use leptos_meta::Script;
 
-use crate::{
-    components::PageWrapper,
-    data::{DataPoint, FilterType},
-    MatchInfo,
-};
+use crate::{components::PageWrapper, data::DataPoint, MatchInfo};
 
 const CURRENT_EVENT: &str = "2025wabon";
 const CURRENT_MATCH: usize = 1;
@@ -153,6 +148,7 @@ pub fn ViewDataPage() -> impl IntoView {
 
     #[cfg(feature = "hydrate")]
     let mut init_table_filters = move |destroy_old: bool| {
+        use crate::data::FilterType;
         use crate::tablefilterjs::*;
         use blue_scout_macros::js_json;
         use js_sys::Reflect;
@@ -226,43 +222,10 @@ pub fn ViewDataPage() -> impl IntoView {
         true,
     );
 
-    let script_string = include_str!("../../public/viewdata_page.js")
-        .replace(
-            "__COL_FILTER_DEFS__,",
-            &DataPoint::field_filter_types()
-                .iter()
-                .enumerate()
-                .filter_map(|(i, (_, filter_type))| {
-                    if *filter_type != FilterType::Normal {
-                        Some(format!("col_{i}: \"{}\",", filter_type))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<String>>()
-                .join("\n"),
-        )
-        .replace(
-            "__COL_FILTER_DEFS_REDUCED__,",
-            &DataPoint::field_filter_types_reduced()
-                .iter()
-                .enumerate()
-                .filter_map(|(i, (_, filter_type))| {
-                    if *filter_type != FilterType::Normal {
-                        Some(format!("col_{i}: \"{}\",", filter_type))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<String>>()
-                .join("\n"),
-        );
-
     view! {
         <Suspense>
             <script src="/tablefilter/tablefilter.js"></script>
         </Suspense>
-        <Script>{script_string}</Script>
         <PageWrapper>
             <div class="container mx-auto">
                 <h1 class="text-3xl font-bold text-center mb-8">View Scouting Data</h1>
@@ -379,7 +342,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                         Red Alliance
                                     </h2>
                                     <div class="rounded-lg p-4 space-y-2">
-                                        <div class="team-container text-center" id="red1">
+                                        <div class="team-container" id="red1">
                                             <span class="font-bold">{"Team 1: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -392,7 +355,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                 </div>
                                             </Suspense>
                                         </div>
-                                        <div class="team-container text-center" id="red2">
+                                        <div class="team-container" id="red2">
                                             <span class="font-bold">{"Team 2: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -405,7 +368,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                 </div>
                                             </Suspense>
                                         </div>
-                                        <div class="team-container text-center" id="red3">
+                                        <div class="team-container" id="red3">
                                             <span class="font-bold">{"Team 3: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -451,7 +414,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                         Blue Alliance
                                     </h2>
                                     <div class="rounded-lg p-4 space-y-2">
-                                        <div class="team-container text-center" id="blue1">
+                                        <div class="team-container" id="blue1">
                                             <span class="font-bold">{"Team 1: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -464,7 +427,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                 </div>
                                             </Suspense>
                                         </div>
-                                        <div class="team-container text-center" id="blue2">
+                                        <div class="team-container" id="blue2">
                                             <span class="font-bold">{"Team 2: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -477,7 +440,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                 </div>
                                             </Suspense>
                                         </div>
-                                        <div class="team-container text-center" id="blue3">
+                                        <div class="team-container" id="blue3">
                                             <span class="font-bold">{"Team 3: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }

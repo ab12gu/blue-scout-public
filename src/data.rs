@@ -142,18 +142,19 @@ define_reduced_columns!(
 define_team_data!(
     DataPoint,
     "Avg Coral" => {
-        v
+        format!("{:.1}", v
             .iter()
             .map(|x| (x.l4_coral + x.l3_coral + x.l2_coral + x.l1_coral) as u32)
             .sum::<u32>() as f64
-            / v.len() as f64
+        / v.len() as f64)
     },
     "Avg Auto Coral" => {
+        format!("{:.1}",
         v
             .iter()
             .map(|x| (x.auto_coral) as u32)
             .sum::<u32>() as f64
-            / v.len() as f64
+        / v.len() as f64)
     },
     "Avg Barge Algae" => {
         format!("{:.1}", v

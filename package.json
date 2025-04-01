@@ -6,8 +6,8 @@
     "tailwindcss": "^4.0.15"
   },
   "scripts": {
-    "build": "npx tailwindcss -i style/tailwind.css -o output/main.css --minify",
-    "watch": "npx tailwindcss -i style/tailwind.css -o output/main.css --minify --watch"
+    "build": "npx tailwindcss -i style/tailwind.css -o output/main.css",
+    "watch": "npx tailwindcss -i style/tailwind.css -o output/main.css--watch"
   },
   "devDependencies": {
     "tablefilter": "^0.7.2"

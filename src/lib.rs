@@ -60,6 +60,14 @@ pub struct MatchInfo {
     blue: [TeamInfo; 3],
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct EventInfo {
+    key: String,
+    short_name: String,
+    start_date: String,
+    end_date: String,
+}
+
 impl MatchInfo {
     pub fn empty() -> Self {
         MatchInfo {
