@@ -145,6 +145,9 @@ pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
+    if cfg!(feature = "ssr") && cfg!(feature = "hydrate") {
+        panic!("Both SSR and Hydration features are enabled! TODO: Fix");
+    }
     use axum::{error_handling::HandleError, Router};
     use blue_scout::{app::*, db::init_db};
     use dotenv::dotenv;
@@ -165,7 +168,7 @@ async fn main() {
 
     init_team_names().await.unwrap();
 
-    init_db().unwrap();
+    init_db().await.unwrap();
 
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;

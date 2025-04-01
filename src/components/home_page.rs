@@ -1,4 +1,4 @@
-use leptos::prelude::*;
+use leptos::{ev, prelude::*};
 use leptos_meta::*;
 
 use crate::{components::PageWrapper, data::InsertDataArgs};
@@ -21,6 +21,53 @@ pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
 
 #[component]
 pub fn HomePage() -> impl IntoView {
+    let l1_coral_count = RwSignal::new(0_usize);
+    let l2_coral_count = RwSignal::new(0_usize);
+    let l3_coral_count = RwSignal::new(0_usize);
+    let l4_coral_count = RwSignal::new(0_usize);
+    let dropped_coral_count = RwSignal::new(0_usize);
+    let barge_algae_count = RwSignal::new(0_usize);
+    let floor_hole_algae_count = RwSignal::new(0_usize);
+    let increment_coral_closure = |x: &mut usize| {
+        if *x < 12 {
+            *x += 1;
+        }
+    };
+    let increment_closure = |x: &mut usize| {
+        *x += 1;
+    };
+    let decrement_closure = |x: &mut usize| {
+        if *x > 0 {
+            *x -= 1;
+        }
+    };
+
+    fn create_handle_input_change(value: RwSignal<usize>) -> impl Fn(ev::Event) {
+        move |ev: ev::Event| {
+            let input_string = event_target_value(&ev);
+            let new_value = input_string.parse::<usize>().unwrap_or(0);
+            value.set(new_value.max(0));
+        }
+    }
+
+    let reset_counters = move |_: ev::MouseEvent| {
+        l1_coral_count.set(0);
+        l2_coral_count.set(0);
+        l3_coral_count.set(0);
+        l4_coral_count.set(0);
+        dropped_coral_count.set(0);
+        floor_hole_algae_count.set(0);
+        barge_algae_count.set(0);
+    };
+
+    let prevent_minus_sign = |ev: ev::KeyboardEvent| {
+        if ev.key() == "-" {
+            ev.prevent_default();
+        }
+    };
+    
+    
+
     let insert_data = ServerAction::<InsertData>::new();
     view! {
         <Script src="/home.js"></Script>
@@ -53,7 +100,7 @@ pub fn HomePage() -> impl IntoView {
                                     placeholder="Enter match number"
                                     name="args[match_number]"
                                     required
-                                    onkeydown="preventMinusSign(event)"
+                                    on:keydown=prevent_minus_sign
                                 />
                             </div>
 
@@ -67,7 +114,7 @@ pub fn HomePage() -> impl IntoView {
                                     placeholder="Enter team number"
                                     name="args[team_number]"
                                     required
-                                    onkeydown="preventMinusSign(event)"
+                                    on:keydown=prevent_minus_sign
                                 />
                             </div>
 
@@ -85,7 +132,7 @@ pub fn HomePage() -> impl IntoView {
                                     name="args[auto_coral]"
                                     value="0"
                                     onchange="updateAutoInput('Coral')"
-                                    onkeydown="preventMinusSign(event)"
+                                    on:keydown=prevent_minus_sign
                                 />
                             </div>
 
@@ -103,7 +150,7 @@ pub fn HomePage() -> impl IntoView {
                                     name="args[auto_algae]"
                                     value="0"
                                     onchange="updateAutoInput('Algae')"
-                                    onkeydown="preventMinusSign(event)"
+                                    on:keydown=prevent_minus_sign
                                 />
                             </div>
 
@@ -139,7 +186,9 @@ pub fn HomePage() -> impl IntoView {
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mb-1 outline-none"
-                                            onclick="incrementCoral('L1')"
+                                            on:click=move |_| {
+                                                l1_coral_count.update(increment_closure);
+                                            }
                                         >
                                             +
                                         </button>
@@ -147,15 +196,17 @@ pub fn HomePage() -> impl IntoView {
                                             id="coralL1Count"
                                             class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
-                                            value="0"
                                             min="0"
-                                            onchange="updateCoralInput('L1')"
-                                            onkeydown="preventMinusSign(event)"
+                                            prop:value=move || l1_coral_count.get().to_string()
+                                            on:change=create_handle_input_change(l1_coral_count)
+                                            on:keydown=prevent_minus_sign
                                         />
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mt-1 outline-none"
-                                            onclick="decrementCoral('L1')"
+                                            on:click=move |_| {
+                                                l1_coral_count.update(decrement_closure);
+                                            }
                                         >
                                             -
                                         </button>
@@ -163,7 +214,7 @@ pub fn HomePage() -> impl IntoView {
                                             type="hidden"
                                             name="args[l1_coral]"
                                             id="coralL1Input"
-                                            value="0"
+                                            prop:value=move || l1_coral_count.get().to_string()
                                         />
                                     </div>
                                     <div class="flex flex-col items-center">
@@ -171,7 +222,9 @@ pub fn HomePage() -> impl IntoView {
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mb-1 outline-none"
-                                            onclick="incrementCoral('L2')"
+                                            on:click=move |_| {
+                                                l2_coral_count.update(increment_coral_closure);
+                                            }
                                         >
                                             +
                                         </button>
@@ -179,16 +232,18 @@ pub fn HomePage() -> impl IntoView {
                                             id="coralL2Count"
                                             class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
-                                            value="0"
+                                            prop:value=move || l2_coral_count.get().to_string()
                                             min="0"
                                             max="12"
-                                            onchange="updateCoralInput('L2')"
-                                            onkeydown="preventMinusSign(event)"
+                                            on:change=create_handle_input_change(l2_coral_count)
+                                            on:keydown=prevent_minus_sign
                                         />
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mt-1 outline-none"
-                                            onclick="decrementCoral('L2')"
+                                            on:click=move |_| {
+                                                l2_coral_count.update(decrement_closure);
+                                            }
                                         >
                                             -
                                         </button>
@@ -196,7 +251,7 @@ pub fn HomePage() -> impl IntoView {
                                             type="hidden"
                                             name="args[l2_coral]"
                                             id="coralL2Input"
-                                            value="0"
+                                            prop:value=move || l2_coral_count.get().to_string()
                                         />
                                     </div>
                                     <div class="flex flex-col items-center">
@@ -204,7 +259,9 @@ pub fn HomePage() -> impl IntoView {
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mb-1 outline-none"
-                                            onclick="incrementCoral('L3')"
+                                            on:click=move |_| {
+                                                l3_coral_count.update(increment_coral_closure);
+                                            }
                                         >
                                             +
                                         </button>
@@ -212,16 +269,18 @@ pub fn HomePage() -> impl IntoView {
                                             id="coralL3Count"
                                             class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
-                                            value="0"
+                                            prop:value=move || l3_coral_count.get().to_string()
                                             min="0"
                                             max="12"
-                                            onchange="updateCoralInput('L3')"
-                                            onkeydown="preventMinusSign(event)"
+                                            on:change=create_handle_input_change(l3_coral_count)
+                                            on:keydown=prevent_minus_sign
                                         />
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mt-1 outline-none"
-                                            onclick="decrementCoral('L3')"
+                                            on:click=move |_| {
+                                                l3_coral_count.update(decrement_closure);
+                                            }
                                         >
                                             -
                                         </button>
@@ -229,7 +288,7 @@ pub fn HomePage() -> impl IntoView {
                                             type="hidden"
                                             name="args[l3_coral]"
                                             id="coralL3Input"
-                                            value="0"
+                                            prop:value=move || l3_coral_count.get().to_string()
                                         />
                                     </div>
                                     <div class="flex flex-col items-center">
@@ -237,7 +296,9 @@ pub fn HomePage() -> impl IntoView {
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mb-1 outline-none"
-                                            onclick="incrementCoral('L4')"
+                                            on:click=move |_| {
+                                                l4_coral_count.update(increment_coral_closure);
+                                            }
                                         >
                                             +
                                         </button>
@@ -245,16 +306,18 @@ pub fn HomePage() -> impl IntoView {
                                             id="coralL4Count"
                                             class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
-                                            value="0"
+                                            prop:value=move || l4_coral_count.get().to_string()
                                             min="0"
                                             max="12"
-                                            onchange="updateCoralInput('L4')"
-                                            onkeydown="preventMinusSign(event)"
+                                            on:change=create_handle_input_change(l4_coral_count)
+                                            on:keydown=prevent_minus_sign
                                         />
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mt-1 outline-none"
-                                            onclick="decrementCoral('L4')"
+                                            on:click=move |_| {
+                                                l4_coral_count.update(decrement_closure);
+                                            }
                                         >
                                             -
                                         </button>
@@ -262,7 +325,7 @@ pub fn HomePage() -> impl IntoView {
                                             type="hidden"
                                             name="args[l4_coral]"
                                             id="coralL4Input"
-                                            value="0"
+                                            prop:value=move || l4_coral_count.get().to_string()
                                         />
                                     </div>
                                     <div class="flex flex-col items-center">
@@ -270,7 +333,9 @@ pub fn HomePage() -> impl IntoView {
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mb-1 outline-none"
-                                            onclick="incrementDroppedCoral()"
+                                            on:click=move |_| {
+                                                dropped_coral_count.update(increment_closure);
+                                            }
                                         >
                                             +
                                         </button>
@@ -278,15 +343,17 @@ pub fn HomePage() -> impl IntoView {
                                             id="coralDroppedCount"
                                             class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
-                                            value="0"
+                                            prop:value=move || dropped_coral_count.get().to_string()
                                             min="0"
-                                            onchange="updateDroppedCoralInput()"
-                                            onkeydown="preventMinusSign(event)"
+                                            on:change=create_handle_input_change(dropped_coral_count)
+                                            on:keydown=prevent_minus_sign
                                         />
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mt-1 outline-none"
-                                            onclick="decrementDroppedCoral()"
+                                            on:click=move |_| {
+                                                dropped_coral_count.update(decrement_closure);
+                                            }
                                         >
                                             -
                                         </button>
@@ -294,7 +361,7 @@ pub fn HomePage() -> impl IntoView {
                                             type="hidden"
                                             name="args[dropped_coral]"
                                             id="coralDroppedInput"
-                                            value="0"
+                                            prop:value=move || dropped_coral_count.get().to_string()
                                         />
                                     </div>
                                 </div>
@@ -310,7 +377,9 @@ pub fn HomePage() -> impl IntoView {
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mb-1 outline-none"
-                                            onclick="incrementAlgae('FloorHole')"
+                                            on:click=move |_| {
+                                                floor_hole_algae_count.update(increment_closure);
+                                            }
                                         >
                                             +
                                         </button>
@@ -318,15 +387,17 @@ pub fn HomePage() -> impl IntoView {
                                             id="algaeFloorHoleCount"
                                             class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
-                                            value="0"
                                             min="0"
-                                            onchange="updateAlgaeInput('FloorHole')"
-                                            onkeydown="preventMinusSign(event)"
+                                            prop:value=move || floor_hole_algae_count.get().to_string()
+                                            on:change=create_handle_input_change(floor_hole_algae_count)
+                                            on:keydown=prevent_minus_sign
                                         />
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mt-1 outline-none"
-                                            onclick="decrementAlgae('FloorHole')"
+                                            on:click=move |_| {
+                                                floor_hole_algae_count.update(decrement_closure);
+                                            }
                                         >
                                             -
                                         </button>
@@ -334,7 +405,7 @@ pub fn HomePage() -> impl IntoView {
                                             type="hidden"
                                             name="args[algae_floor_hole]"
                                             id="algaeFloorHoleInput"
-                                            value="0"
+                                            prop:value=move || floor_hole_algae_count.get().to_string()
                                         />
                                     </div>
                                     <div class="flex flex-col items-center">
@@ -342,7 +413,9 @@ pub fn HomePage() -> impl IntoView {
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mb-1 outline-none"
-                                            onclick="incrementAlgae('Barge')"
+                                            on:click=move |_| {
+                                                barge_algae_count.update(increment_closure);
+                                            }
                                         >
                                             +
                                         </button>
@@ -350,15 +423,17 @@ pub fn HomePage() -> impl IntoView {
                                             id="algaeBargeCount"
                                             class="input input-bordered w-16 text-center py-1 text-xl transparent-num"
                                             type="number"
-                                            value="0"
+                                            prop:value=move || barge_algae_count.get().to_string()
                                             min="0"
-                                            onchange="updateAlgaeInput('Barge')"
-                                            onkeydown="preventMinusSign(event)"
+                                            on:change=create_handle_input_change(barge_algae_count)
+                                            on:keydown=prevent_minus_sign
                                         />
                                         <button
                                             type="button"
                                             class="btn btn-sm btn-soft mt-1 outline-none"
-                                            onclick="decrementAlgae('Barge')"
+                                            on:click=move |_| {
+                                                barge_algae_count.update(decrement_closure);
+                                            }
                                         >
                                             -
                                         </button>
@@ -366,7 +441,7 @@ pub fn HomePage() -> impl IntoView {
                                             type="hidden"
                                             name="args[algae_barge]"
                                             id="algaeBargeInput"
-                                            value="0"
+                                            prop:value=move || barge_algae_count.get().to_string()
                                         />
                                     </div>
                                 </div>
@@ -446,11 +521,7 @@ pub fn HomePage() -> impl IntoView {
                                 <button type="submit" class="btn btn-primary btn-lg">
                                     Submit
                                 </button>
-                                <button
-                                    type="reset"
-                                    class="btn btn-lg"
-                                    onclick="resetCoralCounters()"
-                                >
+                                <button type="reset" class="btn btn-lg" on:click=reset_counters>
                                     Reset
                                 </button>
                             </div>

@@ -2,8 +2,13 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Local};
 use leptos::prelude::*;
+use leptos_meta::Script;
 
-use crate::{components::PageWrapper, data::DataPoint, MatchInfo};
+use crate::{
+    components::PageWrapper,
+    data::{DataPoint, FilterType},
+    MatchInfo,
+};
 
 const CURRENT_EVENT: &str = "2025wabon";
 const CURRENT_MATCH: usize = 1;
@@ -127,10 +132,6 @@ pub fn ViewDataPage() -> impl IntoView {
                 .iter()
                 .map(|name| view! { <th>{name.to_string()}</th> })
                 .collect_view()
-            // REDUCED_COLUMN_NAMES
-            //     .iter()
-            //     .map(|name| view! { <th>{name.to_string()}</th> })
-            //     .collect_view()
         }
     };
 
@@ -144,11 +145,124 @@ pub fn ViewDataPage() -> impl IntoView {
         },
     );
 
+    #[cfg(feature = "hydrate")]
+    let mut table_filter = {
+        use crate::tablefilterjs::TableFilter;
+        None::<TableFilter>
+    };
+
+    #[cfg(feature = "hydrate")]
+    let mut init_table_filters = move |destroy_old: bool| {
+        use crate::tablefilterjs::*;
+        use blue_scout_macros::js_json;
+        use js_sys::Reflect;
+        use wasm_bindgen::{JsCast, JsValue};
+        use web_sys::{window, HtmlTableElement};
+
+        if destroy_old && table_filter.is_some() {
+            let tf = table_filter.take().unwrap();
+            tf.destroy();
+        }
+
+        let document = window().unwrap().document().unwrap();
+        let table = document
+            .get_element_by_id("scouting_data_table")
+            .expect("Table element not found")
+            .dyn_into::<HtmlTableElement>()
+            .unwrap();
+
+        let base_options = js_json!({
+            "base_path": "tablefilter/",
+            "sticky_headers": true,
+            "rows_counter": true,
+            "flt_css_class": "input input-primary",
+            "div_checklist_css_class": "card bg-base-100 border border-primary border-solid",
+            "checklist_css_class": "m-[10]",
+            "clear_filter_text": "None",
+            "enable_checklist_reset_filter": false,
+            "checklist_selected_item_css_class": "text-neutral-50",
+            "themes": [
+              {
+                "name": "transparent",
+              },
+            ],
+        });
+
+        for (i, (_, filter_type)) in (if use_full_names.get_untracked() {
+            DataPoint::field_filter_types()
+        } else {
+            DataPoint::field_filter_types_reduced()
+        })
+        .iter()
+        .enumerate()
+        {
+            if *filter_type != FilterType::Normal {
+                Reflect::set(
+                    &base_options,
+                    &JsValue::from_str(&format!("col_{i}")),
+                    &JsValue::from_str(&filter_type.to_string()),
+                )
+                .unwrap();
+            }
+        }
+
+        let tf = TableFilter::new(&table, &base_options);
+        tf.init();
+        table_filter = Some(tf);
+    };
+
+    Effect::watch(
+        move || use_full_names.get(),
+        move |_, _, _| {
+            #[cfg(feature = "hydrate")]
+            {
+                init_table_filters(true);
+            }
+            #[cfg(feature = "ssr")]
+            {
+                unreachable!("Effects should be used in the client-side only");
+            }
+        },
+        true,
+    );
+
+    let script_string = include_str!("../../public/viewdata_page.js")
+        .replace(
+            "__COL_FILTER_DEFS__,",
+            &DataPoint::field_filter_types()
+                .iter()
+                .enumerate()
+                .filter_map(|(i, (_, filter_type))| {
+                    if *filter_type != FilterType::Normal {
+                        Some(format!("col_{i}: \"{}\",", filter_type))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("\n"),
+        )
+        .replace(
+            "__COL_FILTER_DEFS_REDUCED__,",
+            &DataPoint::field_filter_types_reduced()
+                .iter()
+                .enumerate()
+                .filter_map(|(i, (_, filter_type))| {
+                    if *filter_type != FilterType::Normal {
+                        Some(format!("col_{i}: \"{}\",", filter_type))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("\n"),
+        );
+
     view! {
         <Suspense>
             <script src="/tablefilter/tablefilter.js"></script>
         </Suspense>
-        <script src="/viewdata_page.js"></script>
+        <Script>{script_string}</Script>
         <PageWrapper>
             <div class="container mx-auto">
                 <h1 class="text-3xl font-bold text-center mb-8">View Scouting Data</h1>
@@ -163,8 +277,9 @@ pub fn ViewDataPage() -> impl IntoView {
                                 type="checkbox"
                                 id="fullDataCheckbox"
                                 name="fullDataCheckbox"
-                                onclick="window.reloadTableFilter()"
-                                on:input=move |ev| set_use_full_names(event_target_checked(&ev))
+                                on:input=move |ev| {
+                                    set_use_full_names(event_target_checked(&ev));
+                                }
                             />
                             <br />
                             <br />
@@ -184,25 +299,33 @@ pub fn ViewDataPage() -> impl IntoView {
                                                         view! {
                                                             <tr class="hover:bg-base-300">
                                                                 {if use_full_names.get() {
-                                                                    DataPoint::field_names().iter().map(|name| {
-                                                                        let value = item.get_field(name).unwrap();
-                                                                        let string_value = match value {
-                                                                            crate::data::DataType::U16(val) => val.to_string(),
-                                                                            crate::data::DataType::U32(val) => val.to_string(),
-                                                                            crate::data::DataType::U64(val) => val.to_string(),
-                                                                            crate::data::DataType::I16(val) => val.to_string(),
-                                                                            crate::data::DataType::I32(val) => val.to_string(),
-                                                                            crate::data::DataType::I64(val) => val.to_string(),
-                                                                            crate::data::DataType::String(val) => val,
-                                                                            crate::data::DataType::Bool(val) => display_bool(val),
-                                                                            crate::data::DataType::Float(val) => format!("{:.2}", val),
-                                                                        };
-                                                                        view! { <td>{string_value}</td> }
-                                                                    }).collect_view().into_any()
+                                                                    DataPoint::field_names()
+                                                                        .iter()
+                                                                        .map(|name| {
+                                                                            let value = item.get_field(name).unwrap();
+                                                                            let string_value = match value {
+                                                                                crate::data::DataType::U16(val) => val.to_string(),
+                                                                                crate::data::DataType::U32(val) => val.to_string(),
+                                                                                crate::data::DataType::U64(val) => val.to_string(),
+                                                                                crate::data::DataType::I16(val) => val.to_string(),
+                                                                                crate::data::DataType::I32(val) => val.to_string(),
+                                                                                crate::data::DataType::I64(val) => val.to_string(),
+                                                                                crate::data::DataType::String(val) => val,
+                                                                                crate::data::DataType::Bool(val) => display_bool(val),
+                                                                                crate::data::DataType::Float(val) => format!("{:.2}", val),
+                                                                            };
+                                                                            view! { <td>{string_value}</td> }
+                                                                        })
+                                                                        .collect_view()
+                                                                        .into_any()
                                                                 } else {
-                                                                    item.get_reduced_columns().iter().map(|(_, value)|  {
-                                                                        view! { <td>{value.clone()}</td> }
-                                                                    }).collect_view().into_any()
+                                                                    item.get_reduced_columns()
+                                                                        .iter()
+                                                                        .map(|(_, value)| {
+                                                                            view! { <td>{value.clone()}</td> }
+                                                                        })
+                                                                        .collect_view()
+                                                                        .into_any()
                                                                 }}
                                                             </tr>
                                                         }
@@ -256,7 +379,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                         Red Alliance
                                     </h2>
                                     <div class="rounded-lg p-4 space-y-2">
-                                        <div class="team-container" id="red1">
+                                        <div class="team-container text-center" id="red1">
                                             <span class="font-bold">{"Team 1: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -269,7 +392,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                 </div>
                                             </Suspense>
                                         </div>
-                                        <div class="team-container" id="red2">
+                                        <div class="team-container text-center" id="red2">
                                             <span class="font-bold">{"Team 2: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -282,7 +405,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                 </div>
                                             </Suspense>
                                         </div>
-                                        <div class="team-container" id="red3">
+                                        <div class="team-container text-center" id="red3">
                                             <span class="font-bold">{"Team 3: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -328,7 +451,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                         Blue Alliance
                                     </h2>
                                     <div class="rounded-lg p-4 space-y-2">
-                                        <div class="team-container" id="blue1">
+                                        <div class="team-container text-center" id="blue1">
                                             <span class="font-bold">{"Team 1: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -341,7 +464,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                 </div>
                                             </Suspense>
                                         </div>
-                                        <div class="team-container" id="blue2">
+                                        <div class="team-container text-center" id="blue2">
                                             <span class="font-bold">{"Team 2: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }
@@ -354,7 +477,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                 </div>
                                             </Suspense>
                                         </div>
-                                        <div class="team-container" id="blue3">
+                                        <div class="team-container text-center" id="blue3">
                                             <span class="font-bold">{"Team 3: "}</span>
                                             <Suspense fallback=move || {
                                                 view! { Loading... }

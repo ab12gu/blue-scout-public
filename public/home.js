@@ -151,14 +151,6 @@ function resetAlgaeCounters() {
 document.addEventListener("DOMContentLoaded", function () {
   const form = document.querySelector("form");
   if (form) {
-    // Add reset event handler (existing code)
-    form.addEventListener("reset", function () {
-      setTimeout(() => {
-        resetCoralCounters();
-        resetAlgaeCounters();
-      }, 0);
-    });
-
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
 

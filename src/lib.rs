@@ -1,4 +1,4 @@
-#![feature(let_chains)]
+#![feature(let_chains, extern_types)]
 #![recursion_limit = "256"]
 
 pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
@@ -12,6 +12,7 @@ pub mod app;
 pub mod components;
 pub mod data;
 pub mod db;
+mod tablefilterjs;
 
 #[cfg(feature = "ssr")]
 pub static TEAM_NAMES: std::sync::OnceLock<Vec<Option<String>>> = std::sync::OnceLock::new();

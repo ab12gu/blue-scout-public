@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+use json::{JsonValueInput, generate_js_value_code};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use std::fmt::Write as _;
@@ -10,11 +11,14 @@ use syn::{
     token::Comma,
 };
 
+mod json;
+
 // Define a struct for a field declaration with optional pretty name
 struct FieldDecl {
     name: Ident,
     ty: Type,
     pretty_name: Option<LitStr>,
+    filter_type: Option<Ident>,
 }
 
 // Define the overall input structure for the struct definition
@@ -38,10 +42,18 @@ impl Parse for FieldDecl {
             None
         };
 
+        let filter_type = if input.peek(Token![@]) {
+            input.parse::<Token![@]>()?;
+            Some(input.parse()?)
+        } else {
+            None
+        };
+
         Ok(FieldDecl {
             name,
             ty,
             pretty_name,
+            filter_type,
         })
     }
 }
@@ -130,22 +142,6 @@ fn generate_sql_create_table(fields: &Punctuated<FieldDecl, Comma>) -> String {
     sql
 }
 
-/// Generates a struct with the specified public fields and types.
-/// Also creates a constant list of (field_name, field_type, pretty_name) tuples, implements dynamic field access,
-/// and generates a SQL CREATE TABLE statement.
-///
-/// # Example
-///
-/// ```
-/// use struct_gen::define_struct;
-///
-/// define_struct!(
-///     Person,
-///     name: String => "Name",
-///     age: u32 => "Age",
-///     is_active: bool => "Active"
-/// );
-/// ```
 #[proc_macro]
 pub fn define_struct(input: TokenStream) -> TokenStream {
     // Parse the input tokens
@@ -163,6 +159,11 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
     // Create a constant name for the pretty names
     let pretty_const_name = Ident::new(
         &format!("{}_PRETTY_NAMES", struct_name.to_string().to_uppercase()),
+        struct_name.span(),
+    );
+
+    let filter_type_const_name = Ident::new(
+        &format!("{}_FILTER_TYPES", struct_name.to_string().to_uppercase()),
         struct_name.span(),
     );
 
@@ -246,6 +247,17 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
         };
 
         quote! { (#name, #pretty_name) }
+    });
+
+    // Generate field names and filter types
+    let field_filter_types = input.fields.iter().map(|field| {
+        let name = field.name.to_string();
+        let filter_type = match &field.filter_type {
+            Some(ident) => quote! { FilterType::#ident },
+            None => quote! { FilterType::Normal }, // Default to Normal if not provided
+        };
+
+        quote! { (#name, #filter_type) }
     });
 
     // Generate row mapping field assignments (index-based)
@@ -411,6 +423,9 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
         // Define a constant with field name and pretty name pairs
         pub const #pretty_const_name: &[(&str, &str)] = &[#(#field_pretty_names),*];
 
+        // Define a constant with field name and filter type pairs
+        pub const #filter_type_const_name: &[(&str, FilterType)] = &[#(#field_filter_types),*];
+
         // Define a constant with the SQL CREATE TABLE statement
         pub const #sql_const_name: &str = #sql_create_table;
 
@@ -442,6 +457,11 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
                 #pretty_const_name
             }
 
+            /// Get the field filter types (name, filter_type pairs)
+            pub fn field_filter_types() -> &'static [(&'static str, FilterType)] {
+                #filter_type_const_name
+            }
+
             /// Get just the field names
             pub fn field_names() -> &'static [&'static str] {
                 &[#(#field_names,)*]
@@ -459,6 +479,13 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
                 #const_name.iter()
                     .find(|(name, _)| *name == field_name)
                     .map(|(_, typ)| *typ)
+            }
+
+            /// Get the filter type of a field by name
+            pub fn get_field_filter_type(field_name: &str) -> Option<FilterType> {
+                #filter_type_const_name.iter()
+                    .find(|(name, _)| *name == field_name)
+                    .map(|(_, filter_type)| *filter_type)
             }
 
             /// Get the SQL CREATE TABLE statement for this struct
@@ -487,30 +514,19 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
     output.into()
 }
 
-/// Defines reduced columns for a specific struct.
-/// This must be called after the struct has been defined with `define_struct!`.
-///
-/// # Example
-///
-/// ```
-/// use struct_gen::{define_struct, define_reduced_columns};
-///
-/// define_struct!(
-///     DataPoint,
-///     name: String => "Name",
-///     age: u32 => "Age"
-/// );
-///
-/// define_reduced_columns!(DataPoint,
-///     "Name" => |s| s.name.clone(),
-///     "Age in Months" => |s| (s.age * 12).to_string()
-/// );
-/// ```
 #[proc_macro]
 pub fn define_reduced_columns(input: TokenStream) -> TokenStream {
     // Parse the struct name and reduced column definitions
     let parsed = parse_macro_input!(input as ReducedColumnsInput);
     let struct_name = parsed.struct_name;
+
+    let filter_type_const_name = Ident::new(
+        &format!(
+            "{}_FILTER_TYPES_REDUCED",
+            struct_name.to_string().to_uppercase()
+        ),
+        struct_name.span(),
+    );
 
     // Generate column name literals and closures
     let column_names = parsed.columns.iter().map(|col| col.name.value());
@@ -527,8 +543,22 @@ pub fn define_reduced_columns(input: TokenStream) -> TokenStream {
         }
     });
 
+    // Generate field names and filter types
+    let field_filter_types = parsed.columns.iter().map(|field| {
+        let name = field.name.value();
+        let filter_type = match &field.filter_type {
+            Some(ident) => quote! { FilterType::#ident },
+            None => quote! { FilterType::Normal }, // Default to Normal if not provided
+        };
+
+        quote! { (#name, #filter_type) }
+    });
+
     // Generate the implementation
     let output = quote! {
+
+        // Define a constant with field name and filter type pairs
+        pub const #filter_type_const_name: &[(&str, FilterType)] = &[#(#field_filter_types),*];
         impl #struct_name {
 
             /// Get all reduced column values
@@ -553,6 +583,18 @@ pub fn define_reduced_columns(input: TokenStream) -> TokenStream {
                     _ => return None,
                 })
             }
+
+            /// Get the field filter types (name, filter_type pairs)
+            pub fn field_filter_types_reduced() -> &'static [(&'static str, FilterType)] {
+                #filter_type_const_name
+            }
+
+            /// Get the filter type of a field by name
+            pub fn get_field_filter_type_reduced(field_name: &str) -> Option<FilterType> {
+                #filter_type_const_name.iter()
+                    .find(|(name, _)| *name == field_name)
+                    .map(|(_, filter_type)| *filter_type)
+            }
         }
     };
 
@@ -567,6 +609,7 @@ struct ReducedColumnsInput {
 
 struct ReducedColumnDef {
     name: LitStr,
+    filter_type: Option<Ident>,
     expr: Expr,
 }
 
@@ -581,13 +624,24 @@ impl Parse for ReducedColumnsInput {
             // Parse column name (string literal)
             let name: LitStr = input.parse()?;
 
+            let filter_type = if input.peek(Token![@]) {
+                input.parse::<Token![@]>()?;
+                Some(input.parse()?)
+            } else {
+                None
+            };
+
             // Parse arrow
             input.parse::<Token![=>]>()?;
 
             // Parse expression
             let expr = input.parse()?;
 
-            columns.push(ReducedColumnDef { name, expr });
+            columns.push(ReducedColumnDef {
+                name,
+                filter_type,
+                expr,
+            });
 
             // Skip comma if present
             if input.peek(Token![,]) {
@@ -672,4 +726,11 @@ impl Parse for TeamDataInput {
             columns,
         })
     }
+}
+
+#[proc_macro]
+pub fn js_json(input: TokenStream) -> TokenStream {
+    let parsed_input = parse_macro_input!(input as JsonValueInput);
+    let generated_code = generate_js_value_code(parsed_input);
+    TokenStream::from(generated_code)
 }

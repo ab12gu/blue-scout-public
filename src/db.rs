@@ -21,11 +21,11 @@ pub async fn migrate_db() -> duckdb::Result<()> {
     let mut stmt = conn
         .prepare("SELECT * FROM information_schema.columns WHERE table_name = 'scout_entries'")?;
     let existing_columns: Vec<String> = stmt
-        .query_map([], |row| Ok(row.get::<_, String>(3)?))?
+        .query_map([], |row| row.get::<_, String>(3))?
         .collect::<Result<Vec<_>, _>>()?;
 
     // Get expected columns from DataPoint's metadata
-    for (column_name, data_type) in DataPoint::get_columns() {
+    for (column_name, data_type) in DataPoint::field_metadata() {
         if !existing_columns.contains(&column_name.to_string()) {
             let sql_type = match data_type {
                 DataTypeName::U16 => "SMALLINT",
@@ -38,10 +38,20 @@ pub async fn migrate_db() -> duckdb::Result<()> {
                 DataTypeName::Bool => "BOOLEAN",
                 DataTypeName::Float => "REAL",
             };
+            let default_val = match data_type {
+                DataTypeName::U16
+                | DataTypeName::U32
+                | DataTypeName::U64
+                | DataTypeName::I16
+                | DataTypeName::I32
+                | DataTypeName::I64 => "DEFAULT 0",
+                DataTypeName::String => "DEFAULT ''",
+                DataTypeName::Bool => "DEFAULT FALSE",
+                DataTypeName::Float => "DEFAULT 0.0",
+            };
 
             let alter_sql = format!(
-                "ALTER TABLE scout_entries ADD COLUMN {} {}",
-                column_name, sql_type
+                "ALTER TABLE scout_entries ADD COLUMN {column_name} {sql_type} {default_val}",
             );
             conn.execute(&alter_sql, [])?;
         }
@@ -50,7 +60,7 @@ pub async fn migrate_db() -> duckdb::Result<()> {
     Ok(())
 }
 
-pub fn init_db() -> duckdb::Result<()> {
+pub async fn init_db() -> duckdb::Result<()> {
     let conn = Connection::open("scouting_data.db")?;
 
     conn.execute("INSTALL excel;", [])?;
@@ -67,7 +77,7 @@ pub fn init_db() -> duckdb::Result<()> {
         panic!("DB already initialized");
     };
 
-    Ok(())
+    migrate_db().await
 }
 
 pub async fn get_data() -> std::result::Result<Vec<DataPoint>, anyhow::Error> {
