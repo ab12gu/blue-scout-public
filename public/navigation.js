@@ -1,8 +1,8 @@
 // Navigation and page transition functionality
 document.addEventListener("DOMContentLoaded", function () {
-  preloadPage("/view-data");
-  preloadPage("/settings");
-  preloadPage("/");
+  // preloadPage("/view-data");
+  // preloadPage("/settings");
+  // preloadPage("/");
   // Navigation elements
   const addDataButton = document.getElementById("addDataButton");
   const viewDataButton = document.getElementById("viewDataButton");

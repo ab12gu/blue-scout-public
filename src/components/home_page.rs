@@ -1,5 +1,5 @@
-use leptos::{ev, prelude::*};
-use leptos_meta::*;
+#![allow(unused_variables)]
+use leptos::{ev, html, prelude::*};
 
 use crate::{components::PageWrapper, data::InsertDataArgs};
 
@@ -21,6 +21,12 @@ pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
 
 #[component]
 pub fn HomePage() -> impl IntoView {
+    let (loading, set_loading) = signal(false);
+    let (error_message, set_error_message) = signal(None::<String>);
+
+    let auto_coral = RwSignal::new(0_usize);
+    let auto_algae = RwSignal::new(0_usize);
+
     let l1_coral_count = RwSignal::new(0_usize);
     let l2_coral_count = RwSignal::new(0_usize);
     let l3_coral_count = RwSignal::new(0_usize);
@@ -28,6 +34,7 @@ pub fn HomePage() -> impl IntoView {
     let dropped_coral_count = RwSignal::new(0_usize);
     let barge_algae_count = RwSignal::new(0_usize);
     let floor_hole_algae_count = RwSignal::new(0_usize);
+
     let increment_coral_closure = |x: &mut usize| {
         if *x < 12 {
             *x += 1;
@@ -60,24 +67,149 @@ pub fn HomePage() -> impl IntoView {
         barge_algae_count.set(0);
     };
 
+    let form_ref: NodeRef<html::Form> = NodeRef::new();
+
+    let on_submit = move |ev: ev::SubmitEvent| {
+        #[cfg(feature = "hydrate")]
+        {
+            use js_sys::encode_uri_component;
+            use leptos::task::spawn_local;
+            use wasm_bindgen::JsCast;
+            use web_sys::{FormData, MouseEvent};
+            ev.prevent_default();
+
+            let form_element = form_ref.get().expect("Form reference should be set");
+            let form_action = form_element.action();
+
+            spawn_local(async move {
+                set_loading.set(true);
+                set_error_message.set(None);
+
+                let form_data = match FormData::new_with_form(&form_element) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        let error_str = format!("Failed to create FormData: {:?}", e);
+                        leptos::logging::error!("{}", error_str);
+                        set_error_message.set(Some(error_str));
+                        set_loading.set(false);
+                        return;
+                    }
+                };
+
+                let mut form_data_string = String::new();
+                let entries = match js_sys::try_iter(&form_data) {
+                    Ok(Some(iter)) => iter,
+                    _ => {
+                        let error_str = "Failed to get FormData iterator".to_string();
+                        leptos::logging::error!("{}", error_str);
+                        set_error_message.set(Some(error_str));
+                        set_loading.set(false);
+                        return;
+                    }
+                };
+
+                for entry_result in entries {
+                    match entry_result {
+                        Ok(entry) => {
+                            if let Ok(array) = entry.dyn_into::<js_sys::Array>() {
+                                let key = array.get(0).as_string().unwrap_or_default();
+                                let value = array.get(1).as_string().unwrap_or_default();
+
+                                if !form_data_string.is_empty() {
+                                    form_data_string.push('&');
+                                }
+                                form_data_string.push_str(
+                                    &encode_uri_component(&key)
+                                        .as_string()
+                                        .expect("JsString should be valid"),
+                                );
+                                form_data_string.push('=');
+                                form_data_string.push_str(
+                                    &encode_uri_component(&value)
+                                        .as_string()
+                                        .expect("JsString should be valid"),
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            let error_str = format!("Error iterating FormData: {:?}", e);
+                            leptos::logging::error!("{}", error_str);
+                            continue;
+                        }
+                    }
+                }
+                let client = reqwest::Client::new();
+                let request = client
+                    .post(&form_action)
+                    .header("accept", "application/json")
+                    .header("content-type", "application/x-www-form-urlencoded")
+                    .body(form_data_string);
+
+                match request.send().await {
+                    Ok(response) => {
+                        if !response.status().is_success() {
+                            let status = response.status();
+                            let error_text = response.text().await.unwrap_or_else(|_| {
+                                "Failed to read error response body".to_string()
+                            });
+                            let error_str =
+                                format!("HTTP error! Status: {}, Message: {}", status, error_text);
+                            leptos::logging::error!("{}", error_str);
+                            set_error_message.set(Some(error_str));
+                        } else {
+                            match response.text().await {
+                                Ok(result) => {
+                                    // The original JS checks if the result is literally the string "null"
+                                    if result == "null" {
+                                        leptos::logging::log!("Form submitted successfully!");
+                                        form_element.reset();
+                                        reset_counters(MouseEvent::new("click").unwrap());
+                                    } else {
+                                        // Handle unexpected successful response content
+                                        let error_str = format!("Form submission succeeded but received unexpected response: {}", result);
+                                        leptos::logging::warn!("{}", error_str); // Use warn maybe?
+                                        set_error_message.set(Some(error_str));
+                                    }
+                                }
+                                Err(e) => {
+                                    let error_str =
+                                        format!("Failed to read success response body: {:?}", e);
+                                    leptos::logging::error!("{}", error_str);
+                                    set_error_message.set(Some(error_str));
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let error_str = format!("Network or request error: {:?}", e);
+                        leptos::logging::error!("{}", error_str);
+                        set_error_message.set(Some(error_str));
+                    }
+                }
+                set_loading.set(false);
+            });
+        }
+        #[cfg(feature = "ssr")]
+        {
+            unreachable!("This should not be called from the server");
+        }
+    };
+
     let prevent_minus_sign = |ev: ev::KeyboardEvent| {
         if ev.key() == "-" {
             ev.prevent_default();
         }
     };
-    
-    
 
     let insert_data = ServerAction::<InsertData>::new();
     view! {
-        <Script src="/home.js"></Script>
         <PageWrapper>
             <div class="container mx-auto max-w-3xl">
                 <h1 class="text-3xl font-bold text-center mb-8">4682 Scouting Form</h1>
 
                 <div class="card bg-base-200 shadow-xl">
                     <div class="card-body p-8">
-                        <ActionForm action=insert_data>
+                        <ActionForm action=insert_data node_ref=form_ref on:submit=on_submit>
                             <div class="form-control w-full mb-8">
                                 <label class="label pb-2">
                                     <span class="label-text text-lg font-medium">Name</span>
@@ -130,8 +262,8 @@ pub fn HomePage() -> impl IntoView {
                                     type="number"
                                     placeholder="Enter auto coral number"
                                     name="args[auto_coral]"
-                                    value="0"
-                                    onchange="updateAutoInput('Coral')"
+                                    prop:value=move || auto_coral.get().to_string()
+                                    on:change=create_handle_input_change(auto_coral)
                                     on:keydown=prevent_minus_sign
                                 />
                             </div>
@@ -148,8 +280,8 @@ pub fn HomePage() -> impl IntoView {
                                     type="number"
                                     placeholder="Enter auto algae number"
                                     name="args[auto_algae]"
-                                    value="0"
-                                    onchange="updateAutoInput('Algae')"
+                                    prop:value=move || auto_algae.get().to_string()
+                                    on:change=create_handle_input_change(auto_algae)
                                     on:keydown=prevent_minus_sign
                                 />
                             </div>
@@ -517,9 +649,28 @@ pub fn HomePage() -> impl IntoView {
                                 ></textarea>
                             </div>
 
+                            // Display error messages if any
+                            <Show when=move || error_message.get().is_some()>
+                                <p style="color: red;">{move || error_message.get()}</p>
+                            </Show>
                             <div class="flex justify-center gap-6 mt-10">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    Submit
+                                <button
+                                    type="submit"
+                                    class="btn btn-primary btn-lg"
+                                    disabled=move || loading.get()
+                                >
+                                    {move || {
+                                        if loading.get() {
+
+                                            view! { cx,
+                                                <span class="loading loading-spinner"></span>
+                                                " Submitting..."
+                                            }
+                                                .into_any()
+                                        } else {
+                                            "Submit".into_any()
+                                        }
+                                    }}
                                 </button>
                                 <button type="reset" class="btn btn-lg" on:click=reset_counters>
                                     Reset
