@@ -1,5 +1,4 @@
-use leptos::prelude::*;
-
+use leptos::{logging, prelude::*};
 use web_sys::{window, Event};
 
 use crate::{components::PageWrapper, EventInfo};
@@ -8,8 +7,9 @@ use crate::{components::PageWrapper, EventInfo};
 pub async fn get_frc_events() -> Result<Vec<EventInfo>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::db::get_events;
-        get_events().await.map_err(ServerFnError::new)
+        crate::api::get_frc_events()
+            .await
+            .map_err(ServerFnError::new)
     }
     #[cfg(not(feature = "ssr"))]
     {
@@ -19,35 +19,31 @@ pub async fn get_frc_events() -> Result<Vec<EventInfo>, ServerFnError> {
 
 #[component]
 pub fn SettingsPage() -> impl IntoView {
-    let events = LocalResource::new(move || async { get_frc_events().await });
-
     // Create signals for theme and team number
     let (theme, set_theme) = signal("dark".to_string());
     let (team_number, set_team_number) = signal("".to_string());
     let (event_name, set_event_name) = signal("".to_string());
+    let (events_list, set_events_list) = signal(Vec::<EventInfo>::new());
+
+    Effect::new(move |_| async move {
+        let events = get_frc_events().await;
+        match events {
+            Ok(events) => set_events_list(events),
+            Err(err) => logging::error!("Failed to load events list: {}", err),
+        }
+    });
 
     let (dropdown_visible, set_dropdown_visible) = signal(false);
 
     let filtered_options = Memo::new(move |_| {
         let input = event_name.get().to_lowercase();
 
-        match events.get() {
-            None => vec![],
-            Some(inner) => match inner.as_deref() {
-                Ok(event_list) => {
-                    if input.is_empty() {
-                        return event_list.to_vec();
-                    }
-
-                    event_list
-                        .iter()
-                        .filter(|event| event.short_name.to_lowercase().contains(&input))
-                        .cloned()
-                        .collect::<Vec<_>>()
-                }
-                Err(_) => panic!("Cannot load events list"),
-            },
-        }
+        events_list
+            .get()
+            .iter()
+            .filter(|event| event.short_name.to_lowercase().contains(&input))
+            .cloned()
+            .collect::<Vec<_>>()
     });
 
     // Handle input changes
@@ -174,7 +170,7 @@ pub fn SettingsPage() -> impl IntoView {
                                 >
                                     <Suspense>
                                         {move || {
-                                            if events.get().is_none() {
+                                            if events_list.get().is_empty() {
                                                 // Show loading indicator while resource is loading
                                                 view! {
                                                     <li>

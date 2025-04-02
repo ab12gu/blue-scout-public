@@ -5,9 +5,11 @@ pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
 
 use std::sync::atomic::AtomicBool;
 
+use chrono::NaiveDate;
 use data::DataPoint;
 use serde::{Deserialize, Serialize};
 //#![allow(dead_code, unused_variables)]
+pub mod api;
 pub mod app;
 pub mod components;
 pub mod data;
@@ -64,8 +66,8 @@ pub struct MatchInfo {
 pub struct EventInfo {
     key: String,
     short_name: String,
-    start_date: String,
-    end_date: String,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
 }
 
 impl MatchInfo {

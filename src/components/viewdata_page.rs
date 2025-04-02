@@ -2,8 +2,9 @@ use std::ops::Deref;
 
 use chrono::{DateTime, Local};
 use leptos::prelude::*;
+use web_sys::window;
 
-use crate::{components::PageWrapper, data::DataPoint, MatchInfo};
+use crate::{components::PageWrapper, data::DataPoint, EventInfo, MatchInfo};
 
 const CURRENT_EVENT: &str = "2025wabon";
 const CURRENT_MATCH: usize = 1;
@@ -15,7 +16,7 @@ pub async fn fetch_match_data(
 ) -> Result<MatchInfo, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::db::get_match_info;
+        use crate::api::get_match_info;
         get_match_info(match_number, &event)
             .await
             .map_err(ServerFnError::new)
@@ -115,6 +116,25 @@ fn format_timestamp(timestamp: i64) -> String {
 #[component]
 pub fn ViewDataPage() -> impl IntoView {
     let (use_full_names, set_use_full_names) = signal(false);
+
+    let (current_event, set_current_event) = signal(None::<EventInfo>);
+
+    let (team_number, set_team_number) = signal("".to_string());
+
+    // Initialize values from localStorage on component mount
+    Effect::new(move |_| {
+        use leptos::task::spawn_local;
+        if let Some(window) = window() {
+            if let Ok(storage) = window.local_storage()
+                && let Some(storage) = storage
+            {
+                // Get saved team number
+                if let Ok(Some(saved_team_number)) = storage.get_item("teamNumber") {
+                    set_team_number(saved_team_number.clone());
+                }
+            }
+        }
+    });
 
     let column_names = move || {
         if use_full_names() {
