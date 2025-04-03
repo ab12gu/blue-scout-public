@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{Date, Datelike, NaiveDate, Utc};
+use chrono::Datelike;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +10,7 @@ use crate::{data::DataPoint, db::DB, EventInfo, MatchInfo, TeamInfo, TEAM_NAMES}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Match {
-    actual_time: u64,
+    actual_time: Option<u64>,
     alliances: Alliances,
     comp_level: String,
     event_key: String,
@@ -227,4 +227,30 @@ pub async fn get_frc_events() -> Result<Vec<EventInfo>, anyhow::Error> {
     )?;
 
     Ok(events)
+}
+
+pub async fn next_team_match(team_number: u32, event: String) -> Result<u32, anyhow::Error> {
+    let mut headers = header::HeaderMap::new();
+    headers.insert("accept", "application/json".parse()?);
+    headers.insert("X-TBA-Auth-Key", std::env::var("TBA_API_KEY")?.parse()?);
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let matches: Vec<Match> = serde_json::from_str(
+        &client
+            .get(format!(
+                "https://www.thebluealliance.com/api/v3/team/frc{}/event/{}/matches",
+                team_number, event
+            ))
+            .headers(headers)
+            .send()
+            .await?
+            .text()
+            .await?,
+    )?;
+
+    let next_match = matches.iter().filter(|x| x.winning_alliance == "");
+
+    Ok(0)
 }

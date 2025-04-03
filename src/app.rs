@@ -1,15 +1,11 @@
-use leptos::{logging, prelude::*, task::spawn_local};
+use leptos::prelude::*;
 use leptos_meta::*;
 use leptos_router::{
     components::{Route, Router, Routes},
     StaticSegment,
 };
-use once_cell::sync::OnceCell;
 
-use crate::{
-    components::{FallbackPage, HomePage, SettingsPage, ViewDataPage},
-    EventInfo,
-};
+use crate::components::{FallbackPage, HomePage, SettingsPage, ViewDataPage};
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {

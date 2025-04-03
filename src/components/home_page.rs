@@ -195,8 +195,8 @@ pub fn HomePage() -> impl IntoView {
         }
     };
 
-    let prevent_minus_sign = |ev: ev::KeyboardEvent| {
-        if ev.key() == "-" {
+    let prevent_invalid_input = |ev: ev::KeyboardEvent| {
+        if ev.key() == "-" || ev.key() == "." {
             ev.prevent_default();
         }
     };
@@ -232,7 +232,7 @@ pub fn HomePage() -> impl IntoView {
                                     placeholder="Enter match number"
                                     name="args[match_number]"
                                     required
-                                    on:keydown=prevent_minus_sign
+                                    on:keydown=prevent_invalid_input
                                 />
                             </div>
 
@@ -246,7 +246,7 @@ pub fn HomePage() -> impl IntoView {
                                     placeholder="Enter team number"
                                     name="args[team_number]"
                                     required
-                                    on:keydown=prevent_minus_sign
+                                    on:keydown=prevent_invalid_input
                                 />
                             </div>
 
@@ -264,7 +264,7 @@ pub fn HomePage() -> impl IntoView {
                                     name="args[auto_coral]"
                                     prop:value=move || auto_coral.get().to_string()
                                     on:change=create_handle_input_change(auto_coral)
-                                    on:keydown=prevent_minus_sign
+                                    on:keydown=prevent_invalid_input
                                 />
                             </div>
 
@@ -282,7 +282,7 @@ pub fn HomePage() -> impl IntoView {
                                     name="args[auto_algae]"
                                     prop:value=move || auto_algae.get().to_string()
                                     on:change=create_handle_input_change(auto_algae)
-                                    on:keydown=prevent_minus_sign
+                                    on:keydown=prevent_invalid_input
                                 />
                             </div>
 
@@ -331,7 +331,7 @@ pub fn HomePage() -> impl IntoView {
                                             min="0"
                                             prop:value=move || l1_coral_count.get().to_string()
                                             on:change=create_handle_input_change(l1_coral_count)
-                                            on:keydown=prevent_minus_sign
+                                            on:keydown=prevent_invalid_input
                                         />
                                         <button
                                             type="button"
@@ -368,7 +368,7 @@ pub fn HomePage() -> impl IntoView {
                                             min="0"
                                             max="12"
                                             on:change=create_handle_input_change(l2_coral_count)
-                                            on:keydown=prevent_minus_sign
+                                            on:keydown=prevent_invalid_input
                                         />
                                         <button
                                             type="button"
@@ -405,7 +405,7 @@ pub fn HomePage() -> impl IntoView {
                                             min="0"
                                             max="12"
                                             on:change=create_handle_input_change(l3_coral_count)
-                                            on:keydown=prevent_minus_sign
+                                            on:keydown=prevent_invalid_input
                                         />
                                         <button
                                             type="button"
@@ -442,7 +442,7 @@ pub fn HomePage() -> impl IntoView {
                                             min="0"
                                             max="12"
                                             on:change=create_handle_input_change(l4_coral_count)
-                                            on:keydown=prevent_minus_sign
+                                            on:keydown=prevent_invalid_input
                                         />
                                         <button
                                             type="button"
@@ -478,7 +478,7 @@ pub fn HomePage() -> impl IntoView {
                                             prop:value=move || dropped_coral_count.get().to_string()
                                             min="0"
                                             on:change=create_handle_input_change(dropped_coral_count)
-                                            on:keydown=prevent_minus_sign
+                                            on:keydown=prevent_invalid_input
                                         />
                                         <button
                                             type="button"
@@ -522,7 +522,7 @@ pub fn HomePage() -> impl IntoView {
                                             min="0"
                                             prop:value=move || floor_hole_algae_count.get().to_string()
                                             on:change=create_handle_input_change(floor_hole_algae_count)
-                                            on:keydown=prevent_minus_sign
+                                            on:keydown=prevent_invalid_input
                                         />
                                         <button
                                             type="button"
@@ -558,7 +558,7 @@ pub fn HomePage() -> impl IntoView {
                                             prop:value=move || barge_algae_count.get().to_string()
                                             min="0"
                                             on:change=create_handle_input_change(barge_algae_count)
-                                            on:keydown=prevent_minus_sign
+                                            on:keydown=prevent_invalid_input
                                         />
                                         <button
                                             type="button"

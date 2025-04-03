@@ -1,13 +1,28 @@
 use std::ops::Deref;
 
 use chrono::{DateTime, Local};
-use leptos::prelude::*;
-use web_sys::window;
+use leptos::{ev, prelude::*};
+use web_sys::{window, Event, HtmlInputElement};
 
-use crate::{components::PageWrapper, data::DataPoint, EventInfo, MatchInfo};
+use crate::{components::PageWrapper, data::DataPoint, MatchInfo};
 
-const CURRENT_EVENT: &str = "2025wabon";
 const CURRENT_MATCH: usize = 1;
+
+#[server]
+pub async fn next_team_match(team_number: u32, event: String) -> Result<u32, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::api::get_match_info;
+        get_match_info(match_number, &event)
+            .await
+            .map_err(ServerFnError::new)
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        tracing::error!("Server function called without ssr feature enabled");
+        unreachable!("This should only be called on the server");
+    }
+}
 
 #[server(endpoint = "fetch_match_data")]
 pub async fn fetch_match_data(
@@ -117,13 +132,14 @@ fn format_timestamp(timestamp: i64) -> String {
 pub fn ViewDataPage() -> impl IntoView {
     let (use_full_names, set_use_full_names) = signal(false);
 
-    let (current_event, set_current_event) = signal(None::<EventInfo>);
+    let (current_event, set_current_event) = signal("".to_string());
 
     let (team_number, set_team_number) = signal("".to_string());
 
+    let (current_match_num, set_current_match_num) = signal(CURRENT_MATCH);
+
     // Initialize values from localStorage on component mount
     Effect::new(move |_| {
-        use leptos::task::spawn_local;
         if let Some(window) = window() {
             if let Ok(storage) = window.local_storage()
                 && let Some(storage) = storage
@@ -131,6 +147,10 @@ pub fn ViewDataPage() -> impl IntoView {
                 // Get saved team number
                 if let Ok(Some(saved_team_number)) = storage.get_item("teamNumber") {
                     set_team_number(saved_team_number.clone());
+                }
+
+                if let Ok(Some(saved_event)) = storage.get_item("currentEvent") {
+                    set_current_event(saved_event.clone());
                 }
             }
         }
@@ -152,9 +172,9 @@ pub fn ViewDataPage() -> impl IntoView {
 
     let data = Resource::new(move || use_full_names.get(), move |_| fetch_scouting_data());
     let current_match = Resource::new(
-        || (),
-        |_| async move {
-            fetch_match_data(CURRENT_MATCH as u32, CURRENT_EVENT.to_string())
+        move || (current_event.get(), current_match_num.get()),
+        move |(current_event, current_match_num)| async move {
+            fetch_match_data(current_match_num as u32, current_event)
                 .await
                 .ok()
         },
@@ -241,6 +261,51 @@ pub fn ViewDataPage() -> impl IntoView {
         },
         true,
     );
+
+    let update_match_number = move |ev: Event| {
+        let value = event_target_value(&ev);
+        let el: HtmlInputElement = event_target(&ev);
+        if value != "" {
+            // Parse the current value as a number
+            if let Ok(num_val) = value.parse::<usize>() {
+                // Get min and max attributes if they exist
+                let min = el.min().parse::<usize>().ok();
+                let max = el.max().parse::<usize>().ok();
+
+                // Enforce minimum value if present
+                if let Some(min_val) = min {
+                    if num_val < min_val {
+                        el.set_value(&min_val.to_string());
+                        return;
+                    }
+                }
+
+                // Enforce maximum value if present
+                if let Some(max_val) = max {
+                    if num_val > max_val {
+                        el.set_value(&max_val.to_string());
+                        return;
+                    }
+                }
+            } else {
+                // If the value isn't a valid number, reset to empty or min
+                if let Ok(min_val) = el.min().parse::<usize>() {
+                    el.set_value(&min_val.to_string());
+                } else {
+                    el.set_value("");
+                }
+            }
+        }
+        set_current_match_num.set(el.value().parse().unwrap_or(1_usize));
+    };
+
+    let prevent_invalid_input = move |ev: ev::KeyboardEvent| {
+        if ev.key() == "-" || ev.key() == "." {
+            ev.prevent_default();
+        }
+    };
+
+    let set_next_team_match = move |_: ev::MouseEvent| {};
 
     view! {
         <Suspense>
@@ -351,8 +416,8 @@ pub fn ViewDataPage() -> impl IntoView {
                 </div>
             </div>
 
-            <div class="container mx-auto max-w-3xl mt-[69px]">
-                <h1 class="text-3xl font-bold text-center mb-8">View Next Match</h1>
+            <div class="container mx-auto mt-[69px]">
+                <h1 class="text-3xl font-bold text-center mb-8">View Match</h1>
                 <div class="card bg-base-200 shadow-xl">
                     <div class="card-body p-8">
                         <div class="card-body p-8">
@@ -405,9 +470,26 @@ pub fn ViewDataPage() -> impl IntoView {
                                 </div>
 
                                 <div class="text-center flex flex-col justify-center items-center">
+                                <div class="flex justify-center">
+                                    <button
+                                        on:click=set_next_team_match
+                                        class="btn btn-primary"
+                                    >
+                                    Next Team Match
+                                    </button>
+                                </div>
                                     <div class="text-2xl font-bold mb-2" id="matchNumber">
                                         Match
-                                        {CURRENT_MATCH}
+                                        <input
+                                            min="1"
+                                            max="999"
+                                            style="width: 60px !important; font-size: var(--text-xl) !important;"
+                                            class=".transparent-num !input !input-primary"
+                                            type="number"
+                                            prop:value=move || current_match_num.get().to_string()
+                                            on:keydown=prevent_invalid_input
+                                            on:onchange=update_match_number
+                                        />
                                     </div>
                                     <div class="badge badge-neutral" id="matchTime">
 

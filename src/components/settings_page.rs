@@ -1,4 +1,4 @@
-use leptos::{logging, prelude::*};
+use leptos::{ev, logging, prelude::*, task::spawn_local};
 use web_sys::{window, Event};
 
 use crate::{components::PageWrapper, EventInfo};
@@ -25,12 +25,14 @@ pub fn SettingsPage() -> impl IntoView {
     let (event_name, set_event_name) = signal("".to_string());
     let (events_list, set_events_list) = signal(Vec::<EventInfo>::new());
 
-    Effect::new(move |_| async move {
-        let events = get_frc_events().await;
-        match events {
-            Ok(events) => set_events_list(events),
-            Err(err) => logging::error!("Failed to load events list: {}", err),
-        }
+    Effect::new(move |_| {
+        spawn_local(async move {
+            let events = get_frc_events().await;
+            match events {
+                Ok(events) => set_events_list(events),
+                Err(err) => logging::error!("Failed to load events list: {}", err),
+            }
+        });
     });
 
     let (dropdown_visible, set_dropdown_visible) = signal(false);
@@ -55,7 +57,21 @@ pub fn SettingsPage() -> impl IntoView {
 
     // Handle option selection
     let select_option = move |option: String| {
-        set_event_name(option);
+        set_event_name(option.clone());
+
+        // Save to localStorage
+        if let Some(window) = window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                if let Some(current_event) = events_list
+                    .get_untracked()
+                    .iter()
+                    .find(|x| x.short_name.as_str() == option.as_str())
+                {
+                    let _ = storage.set_item("currentEvent", &current_event.key);
+                }
+                let _ = storage.set_item("currentEventName", &option);
+            }
+        }
         set_dropdown_visible(false);
     };
 
@@ -78,6 +94,11 @@ pub fn SettingsPage() -> impl IntoView {
                 // Get saved team number
                 if let Ok(Some(saved_team_number)) = storage.get_item("teamNumber") {
                     set_team_number(saved_team_number);
+                }
+
+                // Get saved event
+                if let Ok(Some(saved_event)) = storage.get_item("currentEventName") {
+                    set_event_name(saved_event.clone());
                 }
             }
         }
@@ -116,6 +137,31 @@ pub fn SettingsPage() -> impl IntoView {
         }
     };
 
+    let on_event_change = move |ev: Event| {
+        let new_value = event_target_value(&ev);
+        set_event_name(new_value.clone());
+
+        // Save to localStorage
+        if let Some(window) = window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                if let Some(current_event) = events_list
+                    .get_untracked()
+                    .iter()
+                    .find(|x| x.short_name.as_str() == new_value.as_str())
+                {
+                    let _ = storage.set_item("currentEvent", &current_event.key);
+                }
+                let _ = storage.set_item("currentEventName", &new_value);
+            }
+        }
+    };
+
+    let prevent_invalid_input = |ev: ev::KeyboardEvent| {
+        if ev.key() == "-" || ev.key() == "." {
+            ev.prevent_default();
+        }
+    };
+
     view! {
         <PageWrapper>
             <div class="container mx-auto max-w-3xl">
@@ -145,6 +191,7 @@ pub fn SettingsPage() -> impl IntoView {
                                     id="teamNumberInput"
                                     prop:value=team_number
                                     on:change=on_team_number_change
+                                    on:keydown=prevent_invalid_input
                                 />
                             </div>
                         </div>
@@ -159,6 +206,7 @@ pub fn SettingsPage() -> impl IntoView {
                                     prop:value=move || event_name.get()
                                     on:input=handle_input_change
                                     on:focus=handle_focus
+                                    on:change=on_event_change
                                 />
                                 <ul
                                     id="eventInputAutocomplete"
