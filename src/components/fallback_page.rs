@@ -1,3 +1,7 @@
+#[cfg(feature = "ssr")]
+#[allow(unused_imports)]
+use crate::api_config;
+
 use leptos::prelude::*;
 
 #[component]

@@ -3,10 +3,14 @@
 use std::collections::HashMap;
 
 use chrono::Datelike;
-use reqwest::header;
-use serde::{Deserialize, Serialize};
 
-use crate::{data::DataPoint, db::DB, EventInfo, MatchInfo, TeamInfo, TEAM_NAMES};
+use serde::{Deserialize, Serialize};
+use tbaapi::{
+    apis::{event_api::get_events_by_year, match_api::get_event_matches_simple},
+    models::{match_simple::CompLevel, Event},
+};
+
+use crate::{api_config, data::DataPoint, db::DB, MatchInfo, TeamInfo, TEAM_NAMES};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Match {
@@ -36,30 +40,12 @@ struct Alliance {
     team_keys: Vec<String>,
 }
 
-pub async fn get_match_info(match_number: u32, event: &str) -> Result<MatchInfo, anyhow::Error> {
-    let mut headers = header::HeaderMap::new();
-    headers.insert("accept", "application/json".parse()?);
-    headers.insert("X-TBA-Auth-Key", std::env::var("TBA_API_KEY")?.parse()?);
+pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo, anyhow::Error> {
+    let matches = get_event_matches_simple(api_config(), event).await?;
 
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?;
-    let matches: Vec<Match> = serde_json::from_str(
-        &client
-            .get(format!(
-                "https://www.thebluealliance.com/api/v3/event/{}/matches/simple",
-                event
-            ))
-            .headers(headers)
-            .send()
-            .await?
-            .text()
-            .await?,
-    )?;
-
-    let target_match: &Match = matches
+    let target_match = matches
         .iter()
-        .find(|x| x.match_number == match_number && x.comp_level == "qm")
+        .find(|x| x.match_number == match_number && x.comp_level == CompLevel::Qm)
         .unwrap();
 
     let red_team: Vec<usize> = target_match
@@ -178,79 +164,11 @@ pub async fn get_match_info(match_number: u32, event: &str) -> Result<MatchInfo,
         }
     }
 
-    match_info.predicted_time = target_match.predicted_time;
+    match_info.predicted_time = target_match.predicted_time.unwrap_or(0) as u64;
 
     Ok(match_info)
 }
 
-// let now = chrono::Utc::now().date_naive();
-
-// let all_events_past = events.iter().all(|x| x.end_date > now);
-
-// let current_event = events
-//     .iter()
-//     .find(|x| now >= x.start_date && now <= x.end_date);
-
-// if all_events_past {
-//     let most_recent_event = events.iter().max_by_key(|x| x.end_date).unwrap();
-//     return Ok(most_recent_event.clone());
-// } else if let Some(current_event) = current_event {
-//     return Ok(current_event.clone());
-// } else {
-//     let next_event = events
-//         .iter()
-//         .filter(|x| x.start_date > now)
-//         .min_by_key(|x| x.start_date)
-//         .unwrap();
-//     return Ok(next_event.clone());
-// }
-
-pub async fn get_frc_events() -> Result<Vec<EventInfo>, anyhow::Error> {
-    let mut headers = header::HeaderMap::new();
-    headers.insert("accept", "application/json".parse()?);
-    headers.insert("X-TBA-Auth-Key", std::env::var("TBA_API_KEY")?.parse()?);
-
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?;
-    let events: Vec<EventInfo> = serde_json::from_str(
-        &client
-            .get(format!(
-                "https://www.thebluealliance.com/api/v3/events/{}",
-                chrono::Utc::now().year()
-            ))
-            .headers(headers)
-            .send()
-            .await?
-            .text()
-            .await?,
-    )?;
-
-    Ok(events)
-}
-
-pub async fn next_team_match(team_number: u32, event: String) -> Result<u32, anyhow::Error> {
-    let mut headers = header::HeaderMap::new();
-    headers.insert("accept", "application/json".parse()?);
-    headers.insert("X-TBA-Auth-Key", std::env::var("TBA_API_KEY")?.parse()?);
-
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?;
-    let matches: Vec<Match> = serde_json::from_str(
-        &client
-            .get(format!(
-                "https://www.thebluealliance.com/api/v3/team/frc{}/event/{}/matches",
-                team_number, event
-            ))
-            .headers(headers)
-            .send()
-            .await?
-            .text()
-            .await?,
-    )?;
-
-    let next_match = matches.iter().filter(|x| x.winning_alliance == "");
-
-    Ok(0)
+pub async fn get_frc_events() -> Result<Vec<Event>, anyhow::Error> {
+    Ok(get_events_by_year(api_config(), chrono::Utc::now().year()).await?)
 }

@@ -1,10 +1,15 @@
+#[cfg(feature = "ssr")]
+#[allow(unused_imports)]
+use crate::api_config;
+
 use leptos::{ev, logging, prelude::*, task::spawn_local};
+use tbaapi::models::Event as TBAEvent;
 use web_sys::{window, Event};
 
-use crate::{components::PageWrapper, EventInfo};
+use crate::components::PageWrapper;
 
 #[server]
-pub async fn get_frc_events() -> Result<Vec<EventInfo>, ServerFnError> {
+pub async fn get_frc_events() -> Result<Vec<TBAEvent>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         crate::api::get_frc_events()
@@ -23,7 +28,7 @@ pub fn SettingsPage() -> impl IntoView {
     let (theme, set_theme) = signal("dark".to_string());
     let (team_number, set_team_number) = signal("".to_string());
     let (event_name, set_event_name) = signal("".to_string());
-    let (events_list, set_events_list) = signal(Vec::<EventInfo>::new());
+    let (events_list, set_events_list) = signal(Vec::<TBAEvent>::new());
 
     Effect::new(move |_| {
         spawn_local(async move {
@@ -43,7 +48,12 @@ pub fn SettingsPage() -> impl IntoView {
         events_list
             .get()
             .iter()
-            .filter(|event| event.short_name.to_lowercase().contains(&input))
+            .filter(|event| {
+                event
+                    .short_name
+                    .as_ref()
+                    .is_some_and(|x| x.to_lowercase().contains(&input))
+            })
             .cloned()
             .collect::<Vec<_>>()
     });
@@ -65,7 +75,7 @@ pub fn SettingsPage() -> impl IntoView {
                 if let Some(current_event) = events_list
                     .get_untracked()
                     .iter()
-                    .find(|x| x.short_name.as_str() == option.as_str())
+                    .find(|x| x.short_name.as_ref().is_some_and(|x| x == option.as_str()))
                 {
                     let _ = storage.set_item("currentEvent", &current_event.key);
                 }
@@ -144,11 +154,11 @@ pub fn SettingsPage() -> impl IntoView {
         // Save to localStorage
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
-                if let Some(current_event) = events_list
-                    .get_untracked()
-                    .iter()
-                    .find(|x| x.short_name.as_str() == new_value.as_str())
-                {
+                if let Some(current_event) = events_list.get_untracked().iter().find(|x| {
+                    x.short_name
+                        .as_ref()
+                        .is_some_and(|x| x == new_value.as_str())
+                }) {
                     let _ = storage.set_item("currentEvent", &current_event.key);
                 }
                 let _ = storage.set_item("currentEventName", &new_value);
@@ -244,7 +254,7 @@ pub fn SettingsPage() -> impl IntoView {
                                                                     view! {
                                                                         <li>
                                                                             <a on:click=move |_| select_option(
-                                                                                event_name.clone(),
+                                                                                event_name.clone().unwrap_or_else(String::new),
                                                                             )>{event.short_name.clone()}</a>
                                                                         </li>
                                                                     }

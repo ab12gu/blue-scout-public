@@ -1,6 +1,10 @@
 #![allow(unused_variables)]
 use leptos::{ev, html, prelude::*};
 
+#[cfg(feature = "ssr")]
+#[allow(unused_imports)]
+use crate::api_config;
+
 use crate::{components::PageWrapper, data::InsertDataArgs};
 
 #[server]

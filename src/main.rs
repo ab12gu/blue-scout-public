@@ -1,43 +1,11 @@
 #[cfg(feature = "ssr")]
 async fn init_team_names() -> anyhow::Result<()> {
-    use blue_scout::TEAM_NAMES;
-    use reqwest::header;
-    use serde::Deserialize;
+    use blue_scout::{api_config, TEAM_NAMES};
+    use tbaapi::apis::default_api::get_search_index;
 
-    #[derive(Deserialize, Debug)]
-    pub struct TeamResponse {
-        key: String,
-        nickname: String,
-    }
+    let res = get_search_index(api_config()).await?;
 
-    #[derive(Deserialize)]
-    pub struct Response {
-        teams: Vec<TeamResponse>,
-    }
-
-    let mut headers = header::HeaderMap::new();
-    headers.insert("accept", "application/json".parse().unwrap());
-
-    let api_key = std::env::var("TBA_API_KEY");
-
-    if api_key.is_err() {
-        return Err(anyhow::anyhow!("Expected TBA_API_KEY in .env file"));
-    }
-
-    headers.insert("X-TBA-Auth-Key", std::env::var("TBA_API_KEY")?.parse()?);
-
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?;
-    let res = client
-        .get("https://www.thebluealliance.com/api/v3/search_index")
-        .headers(headers)
-        .send()
-        .await?
-        .text()
-        .await?;
-
-    let info: Vec<(u32, String)> = serde_json::from_str::<Response>(&res)?
+    let info: Vec<(u32, String)> = res
         .teams
         .into_iter()
         .map(|team| {
@@ -62,6 +30,8 @@ async fn init_team_names() -> anyhow::Result<()> {
 
 #[cfg(feature = "ssr")]
 use axum::response::IntoResponse;
+
+use tbaapi::apis::configuration::Configuration;
 
 #[cfg(feature = "ssr")]
 pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
@@ -149,12 +119,13 @@ async fn main() {
         panic!("Both SSR and Hydration features are enabled! TODO: Fix");
     }
     use axum::{error_handling::HandleError, Router};
-    use blue_scout::{app::*, db::init_db};
+    use blue_scout::{app::*, db::init_db, API_CONFIG};
     use dotenv::dotenv;
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use reqwest::StatusCode;
+    use tbaapi::apis::configuration::ApiKey;
 
     async fn handle_anyhow_error(err: anyhow::Error) -> (StatusCode, String) {
         (
@@ -165,6 +136,16 @@ async fn main() {
 
     tracing_subscriber::fmt::init();
     dotenv().ok();
+
+    let config = Configuration {
+        api_key: Some(ApiKey {
+            prefix: None,
+            key: std::env::var("TBA_API_KEY").unwrap(),
+        }),
+        ..Configuration::default()
+    };
+
+    API_CONFIG.set(config).unwrap();
 
     init_team_names().await.unwrap();
 

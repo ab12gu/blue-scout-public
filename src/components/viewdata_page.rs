@@ -1,21 +1,41 @@
+#[cfg(feature = "ssr")]
+#[allow(unused_imports)]
+use crate::api_config;
+
 use std::ops::Deref;
 
 use chrono::{DateTime, Local};
-use leptos::{ev, prelude::*};
+use leptos::{ev, logging, prelude::*, task::spawn_local};
 use web_sys::{window, Event, HtmlInputElement};
 
 use crate::{components::PageWrapper, data::DataPoint, MatchInfo};
 
-const CURRENT_MATCH: usize = 1;
+const CURRENT_MATCH: u32 = 1;
+
+const DEBUG_NEXT_MATCH: bool = true;
 
 #[server]
-pub async fn next_team_match(team_number: u32, event: String) -> Result<u32, ServerFnError> {
+pub async fn next_team_match(
+    team_number: u32,
+    event: String,
+) -> Result<Option<u32>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use crate::api::get_match_info;
-        get_match_info(match_number, &event)
-            .await
-            .map_err(ServerFnError::new)
+        use tbaapi::apis::team_api::get_team_event_matches;
+        Ok(
+            get_team_event_matches(api_config(), &format!("frc{team_number}"), &event)
+                .await
+                .map_err(ServerFnError::new)?
+                .iter()
+                .filter_map(|x| {
+                    if x.actual_time.is_none() || DEBUG_NEXT_MATCH {
+                        Some(x.match_number as u32)
+                    } else {
+                        None
+                    }
+                })
+                .min(),
+        )
     }
     #[cfg(not(feature = "ssr"))]
     {
@@ -26,7 +46,7 @@ pub async fn next_team_match(team_number: u32, event: String) -> Result<u32, Ser
 
 #[server(endpoint = "fetch_match_data")]
 pub async fn fetch_match_data(
-    match_number: u32,
+    match_number: i32,
     event: String,
 ) -> Result<MatchInfo, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -174,7 +194,7 @@ pub fn ViewDataPage() -> impl IntoView {
     let current_match = Resource::new(
         move || (current_event.get(), current_match_num.get()),
         move |(current_event, current_match_num)| async move {
-            fetch_match_data(current_match_num as u32, current_event)
+            fetch_match_data(current_match_num as i32, current_event)
                 .await
                 .ok()
         },
@@ -296,7 +316,8 @@ pub fn ViewDataPage() -> impl IntoView {
                 }
             }
         }
-        set_current_match_num.set(el.value().parse().unwrap_or(1_usize));
+        set_current_match_num.set(el.value().parse().unwrap_or(1));
+        println!("{}", current_match_num.get());
     };
 
     let prevent_invalid_input = move |ev: ev::KeyboardEvent| {
@@ -305,7 +326,21 @@ pub fn ViewDataPage() -> impl IntoView {
         }
     };
 
-    let set_next_team_match = move |_: ev::MouseEvent| {};
+    let set_next_team_match = move |_: ev::MouseEvent| {
+        spawn_local(async move {
+            logging::log!("{:?}", team_number.get_untracked());
+            logging::log!("{:?}", current_event.get_untracked());
+            if let Ok(team_number) = team_number.get_untracked().parse() {
+                if let Ok(match_num) =
+                    next_team_match(team_number, current_event.get_untracked()).await
+                    && let Some(match_num) = match_num
+                {
+                    logging::log!("{}", match_num);
+                    set_current_match_num(match_num);
+                }
+            }
+        })
+    };
 
     view! {
         <Suspense>
@@ -470,7 +505,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                 </div>
 
                                 <div class="text-center flex flex-col justify-center items-center">
-                                <div class="flex justify-center">
+                                <div class="flex justify-center mb-10">
                                     <button
                                         on:click=set_next_team_match
                                         class="btn btn-primary"

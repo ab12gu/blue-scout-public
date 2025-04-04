@@ -1,6 +1,15 @@
 #![feature(let_chains, extern_types)]
 #![recursion_limit = "256"]
 
+#[cfg(feature = "ssr")]
+pub static API_CONFIG: once_cell::sync::OnceCell<tbaapi::apis::configuration::Configuration> =
+    once_cell::sync::OnceCell::new();
+
+#[cfg(feature = "ssr")]
+pub fn api_config() -> &'static tbaapi::apis::configuration::Configuration {
+    API_CONFIG.get().expect("API_CONFIG should have been set")
+}
+
 pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
 
 use std::sync::atomic::AtomicBool;
@@ -8,7 +17,6 @@ use std::sync::atomic::AtomicBool;
 use chrono::NaiveDate;
 use data::DataPoint;
 use serde::{Deserialize, Serialize};
-//#![allow(dead_code, unused_variables)]
 pub mod api;
 pub mod app;
 pub mod components;

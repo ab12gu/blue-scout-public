@@ -44,7 +44,7 @@ strum_macros = "0.27.1"
 js-sys = "0.3.77"
 serde_json = { version = "1.0.140", optional = true }
 static_assertions = "1.1.0"
-
+tbaapi = { path = "./tbaapi" }
 
 [features]
 ssr = [
