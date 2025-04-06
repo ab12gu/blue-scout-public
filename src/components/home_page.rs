@@ -1,21 +1,19 @@
 #![allow(unused_variables)]
 use leptos::{ev, html, prelude::*};
 
-#[cfg(feature = "ssr")]
-#[allow(unused_imports)]
-use crate::api_config;
-
-use crate::{components::PageWrapper, data::InsertDataArgs};
+use crate::{components::PageWrapper, data::InsertDataArgs, BlueScoutError};
 
 #[server]
-pub async fn insert_data(args: InsertDataArgs) -> Result<(), ServerFnError> {
+pub async fn insert_data(args: InsertDataArgs) -> Result<(), BlueScoutError> {
     #[cfg(feature = "ssr")]
-    {
+    return {
         use crate::db::insert_form_data;
-        insert_form_data(args.map_insert_data_args()).await?;
+        insert_form_data(args.map_insert_data_args())
+            .await
+            .map_err(BlueScoutError::database_error)?;
 
         Ok(())
-    }
+    };
     #[cfg(not(feature = "ssr"))]
     {
         tracing::error!("Server function called without ssr feature enabled");

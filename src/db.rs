@@ -74,7 +74,7 @@ pub async fn init_db() -> duckdb::Result<()> {
     migrate_db().await
 }
 
-pub async fn get_data() -> std::result::Result<Vec<DataPoint>, anyhow::Error> {
+pub async fn get_data() -> Result<Vec<DataPoint>, anyhow::Error> {
     let db = DB.get().expect("Database not initialized");
     let conn = db.lock().await;
     let mut stmt = conn.prepare("SELECT * FROM scout_entries")?;

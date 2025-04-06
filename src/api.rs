@@ -10,7 +10,7 @@ use tbaapi::{
     models::{match_simple::CompLevel, Event},
 };
 
-use crate::{api_config, data::DataPoint, db::DB, MatchInfo, TeamInfo, TEAM_NAMES};
+use crate::{api_config, data::DataPoint, db::DB, BlueScoutError, MatchInfo, TeamInfo, TEAM_NAMES};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Match {
@@ -40,8 +40,10 @@ struct Alliance {
     team_keys: Vec<String>,
 }
 
-pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo, anyhow::Error> {
-    let matches = get_event_matches_simple(api_config(), event).await?;
+pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo, BlueScoutError> {
+    let matches = get_event_matches_simple(api_config(), event)
+        .await
+        .map_err(BlueScoutError::api_error)?;
 
     let target_match = matches
         .iter()
@@ -57,10 +59,10 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
         .collect();
 
     if red_team.len() != 3 {
-        return Err(anyhow::anyhow!(
+        return Err(BlueScoutError::api_error(format!(
             "Invalid red team data. Expected 3 teams but found {}",
             red_team.len()
-        ));
+        )));
     }
 
     let blue_team: Vec<usize> = target_match
@@ -72,10 +74,10 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
         .collect();
 
     if blue_team.len() != 3 {
-        return Err(anyhow::anyhow!(
+        return Err(BlueScoutError::api_error(format!(
             "Invalid blue team data. Expected 3 teams but found {}",
             blue_team.len()
-        ));
+        )));
     }
 
     let db = DB.get().expect("Database not initialized");

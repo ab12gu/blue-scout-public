@@ -152,7 +152,7 @@ define_team_data!(
         format!("{:.1}",
         v
             .iter()
-            .map(|x| (x.auto_coral) as u32)
+            .map(|x| x.auto_coral as u32)
             .sum::<u32>() as f64
         / v.len() as f64)
     },

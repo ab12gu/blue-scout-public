@@ -12,6 +12,7 @@ pub fn api_config() -> &'static tbaapi::apis::configuration::Configuration {
 
 pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
 
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::AtomicBool;
 
 use chrono::NaiveDate;
@@ -22,7 +23,9 @@ pub mod app;
 pub mod components;
 pub mod data;
 pub mod db;
+mod error;
 mod tablefilterjs;
+pub use error::*;
 
 #[cfg(feature = "ssr")]
 pub static TEAM_NAMES: std::sync::OnceLock<Vec<Option<String>>> = std::sync::OnceLock::new();

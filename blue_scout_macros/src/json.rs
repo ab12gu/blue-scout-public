@@ -164,7 +164,7 @@ impl Parse for JsonValueInput {
                     } else if input.peek(token::Bracket) {
                         // Index
                         let content;
-                        let bracket_token = syn::bracketed!(content in input);
+                        let bracket_token = bracketed!(content in input);
                         let index = content.parse::<Expr>()?;
                         expr = Expr::Index(syn::ExprIndex {
                             attrs: Vec::new(),

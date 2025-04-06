@@ -1,3 +1,5 @@
+#![allow(clippy::needless_return)]
+
 #[cfg(feature = "ssr")]
 #[allow(unused_imports)]
 use crate::api_config;
@@ -5,27 +7,70 @@ use crate::api_config;
 use std::ops::Deref;
 
 use chrono::{DateTime, Local};
-use leptos::{ev, logging, prelude::*, task::spawn_local};
+use leptos::{ev, prelude::*, task::spawn_local};
 use web_sys::{window, Event, HtmlInputElement};
 
-use crate::{components::PageWrapper, data::DataPoint, MatchInfo};
+use crate::{components::PageWrapper, data::DataPoint, BlueScoutError, MatchInfo};
 
 const CURRENT_MATCH: u32 = 1;
 
 const DEBUG_NEXT_MATCH: bool = true;
 
+#[cfg(feature = "hydrate")]
+mod jsalert {
+    use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(js_namespace = Swal)]
+        pub fn fire(options: &JsValue) -> js_sys::Promise;
+    }
+}
+
+fn show_error(title: &str, text: &str) -> js_sys::Promise {
+    #[cfg(feature = "hydrate")]
+    {
+        use js_sys::{Object, Reflect};
+        use jsalert::*;
+        let data_theme = if let Some(window) = window() {
+            if let Some(document) = window.document() {
+                if let Some(html) = document.document_element() {
+                    html.get_attribute("data-theme")
+                        .unwrap_or_else(|| "light".to_string())
+                } else {
+                    "light".to_string()
+                }
+            } else {
+                "light".to_string()
+            }
+        } else {
+            "light".to_string()
+        };
+
+        let options = Object::new();
+        Reflect::set(&options, &"icon".into(), &"error".into()).unwrap();
+        Reflect::set(&options, &"title".into(), &title.into()).unwrap();
+        Reflect::set(&options, &"text".into(), &text.into()).unwrap();
+        Reflect::set(&options, &"theme".into(), &data_theme.into()).unwrap();
+
+        fire(&options)
+    }
+    #[cfg(not(feature = "hydrate"))]
+    unreachable!("This should be called on the client");
+}
+
 #[server]
 pub async fn next_team_match(
     team_number: u32,
     event: String,
-) -> Result<Option<u32>, ServerFnError> {
+) -> Result<Option<u32>, BlueScoutError> {
     #[cfg(feature = "ssr")]
-    {
+    return {
         use tbaapi::apis::team_api::get_team_event_matches;
         Ok(
             get_team_event_matches(api_config(), &format!("frc{team_number}"), &event)
                 .await
-                .map_err(ServerFnError::new)?
+                .map_err(BlueScoutError::api_error)?
                 .iter()
                 .filter_map(|x| {
                     if x.actual_time.is_none() || DEBUG_NEXT_MATCH {
@@ -36,7 +81,7 @@ pub async fn next_team_match(
                 })
                 .min(),
         )
-    }
+    };
     #[cfg(not(feature = "ssr"))]
     {
         tracing::error!("Server function called without ssr feature enabled");
@@ -48,14 +93,12 @@ pub async fn next_team_match(
 pub async fn fetch_match_data(
     match_number: i32,
     event: String,
-) -> Result<MatchInfo, ServerFnError> {
+) -> Result<MatchInfo, BlueScoutError> {
     #[cfg(feature = "ssr")]
-    {
+    return {
         use crate::api::get_match_info;
-        get_match_info(match_number, &event)
-            .await
-            .map_err(ServerFnError::new)
-    }
+        get_match_info(match_number, &event).await
+    };
     #[cfg(not(feature = "ssr"))]
     {
         tracing::error!("Server function called without ssr feature enabled");
@@ -64,11 +107,11 @@ pub async fn fetch_match_data(
 }
 
 #[server(endpoint = "fetch_scouting_data")]
-pub async fn fetch_scouting_data() -> Result<Vec<DataPoint>, ServerFnError> {
+pub async fn fetch_scouting_data() -> Result<Vec<DataPoint>, BlueScoutError> {
     #[cfg(feature = "ssr")]
     {
         use crate::db::get_data as get_db_data;
-        get_db_data().await.map_err(ServerFnError::new)
+        return get_db_data().await.map_err(BlueScoutError::database_error);
     }
     #[cfg(not(feature = "ssr"))]
     {
@@ -152,9 +195,9 @@ fn format_timestamp(timestamp: i64) -> String {
 pub fn ViewDataPage() -> impl IntoView {
     let (use_full_names, set_use_full_names) = signal(false);
 
-    let (current_event, set_current_event) = signal("".to_string());
+    let (current_event, set_current_event) = signal(None::<String>);
 
-    let (team_number, set_team_number) = signal("".to_string());
+    let (team_number, set_team_number) = signal(None::<String>);
 
     let (current_match_num, set_current_match_num) = signal(CURRENT_MATCH);
 
@@ -165,12 +208,13 @@ pub fn ViewDataPage() -> impl IntoView {
                 && let Some(storage) = storage
             {
                 // Get saved team number
-                if let Ok(Some(saved_team_number)) = storage.get_item("teamNumber") {
-                    set_team_number(saved_team_number.clone());
+                if let Ok(saved_team_number) = storage.get_item("teamNumber") {
+                    set_team_number(Some(saved_team_number.unwrap_or_default()));
                 }
 
-                if let Ok(Some(saved_event)) = storage.get_item("currentEvent") {
-                    set_current_event(saved_event.clone());
+                // Get saved event id
+                if let Ok(saved_event) = storage.get_item("currentEvent") {
+                    set_current_event(Some(saved_event.unwrap_or_default()));
                 }
             }
         }
@@ -194,7 +238,7 @@ pub fn ViewDataPage() -> impl IntoView {
     let current_match = Resource::new(
         move || (current_event.get(), current_match_num.get()),
         move |(current_event, current_match_num)| async move {
-            fetch_match_data(current_match_num as i32, current_event)
+            fetch_match_data(current_match_num as i32, current_event.unwrap_or_default())
                 .await
                 .ok()
         },
@@ -285,7 +329,7 @@ pub fn ViewDataPage() -> impl IntoView {
     let update_match_number = move |ev: Event| {
         let value = event_target_value(&ev);
         let el: HtmlInputElement = event_target(&ev);
-        if value != "" {
+        if !value.is_empty() {
             // Parse the current value as a number
             if let Ok(num_val) = value.parse::<usize>() {
                 // Get min and max attributes if they exist
@@ -328,16 +372,21 @@ pub fn ViewDataPage() -> impl IntoView {
 
     let set_next_team_match = move |_: ev::MouseEvent| {
         spawn_local(async move {
-            logging::log!("{:?}", team_number.get_untracked());
-            logging::log!("{:?}", current_event.get_untracked());
-            if let Ok(team_number) = team_number.get_untracked().parse() {
-                if let Ok(match_num) =
-                    next_team_match(team_number, current_event.get_untracked()).await
+            if let Ok(team_number) = team_number.get_untracked().unwrap_or_default().parse() {
+                if let Ok(match_num) = next_team_match(
+                    team_number,
+                    current_event.get_untracked().unwrap_or_default(),
+                )
+                .await
                     && let Some(match_num) = match_num
                 {
-                    logging::log!("{}", match_num);
                     set_current_match_num(match_num);
                 }
+            } else {
+                let _ = show_error(
+                    "Error",
+                    "Team Number needs to be set in settings for this feature to work!",
+                );
             }
         })
     };
@@ -345,6 +394,7 @@ pub fn ViewDataPage() -> impl IntoView {
     view! {
         <Suspense>
             <script src="/tablefilter/tablefilter.js"></script>
+            <script src="/sweetalert2.min.js"></script>
         </Suspense>
         <PageWrapper>
             <div class="container mx-auto">
@@ -453,176 +503,194 @@ pub fn ViewDataPage() -> impl IntoView {
 
             <div class="container mx-auto mt-[69px]">
                 <h1 class="text-3xl font-bold text-center mb-8">View Match</h1>
-                <div class="card bg-base-200 shadow-xl">
-                    <div class="card-body p-8">
-                        <div class="card-body p-8">
-                            <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                                <div class="flex-1">
-                                    <h2 class="text-xl font-bold text-center text-error mb-4">
-                                        Red Alliance
-                                    </h2>
-                                    <div class="rounded-lg p-4 space-y-2">
-                                        <div class="team-container" id="red1">
-                                            <span class="font-bold">{"Team 1: "}</span>
-                                            <Suspense fallback=move || {
-                                                view! { Loading... }
-                                            }>{team_number_view!(current_match, red, 0)}</Suspense>
-                                            <Suspense fallback=move || {
-                                                view! { <p>"Loading stats..."</p> }
-                                            }>
-                                                <div class="text-sm opacity-75 team-stats">
-                                                    {team_data_view!(current_match, red, 0)}
+                <Suspense>
+                    {move || {
+                        if current_event.get().is_none() {
+                            view! { <h2 class="text-2xl text-center mb-16">Loading...</h2> }
+                                .into_any()
+                        } else if current_event.get().is_some_and(|x| x.is_empty()) {
+                            view! {
+                                <h2 class="text-2xl text-center mb-16 text-error">
+                                    Event Name needs to be set in settings for this feature to work!
+                                </h2>
+                            }
+                                .into_any()
+                        } else {
+                            view! {
+                                <div class="card bg-base-200 shadow-xl">
+                                    <div class="card-body p-8">
+                                        <div class="card-body p-8">
+                                            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                                                <div class="flex-1">
+                                                    <h2 class="text-xl font-bold text-center text-error mb-4">
+                                                        Red Alliance
+                                                    </h2>
+                                                    <div class="rounded-lg p-4 space-y-2">
+                                                        <div class="team-container" id="red1">
+                                                            <span class="font-bold">{"Team 1: "}</span>
+                                                            <Suspense fallback=move || {
+                                                                view! { Loading... }
+                                                            }>{team_number_view!(current_match, red, 0)}</Suspense>
+                                                            <Suspense fallback=move || {
+                                                                view! { <p>"Loading stats..."</p> }
+                                                            }>
+                                                                <div class="text-sm opacity-75 team-stats">
+                                                                    {team_data_view!(current_match, red, 0)}
+                                                                </div>
+                                                            </Suspense>
+                                                        </div>
+                                                        <div class="team-container" id="red2">
+                                                            <span class="font-bold">{"Team 2: "}</span>
+                                                            <Suspense fallback=move || {
+                                                                view! { Loading... }
+                                                            }>{team_number_view!(current_match, red, 1)}</Suspense>
+                                                            <Suspense fallback=move || {
+                                                                view! { <p>"Loading stats..."</p> }
+                                                            }>
+                                                                <div class="text-sm opacity-75 team-stats">
+                                                                    {team_data_view!(current_match, red, 1)}
+                                                                </div>
+                                                            </Suspense>
+                                                        </div>
+                                                        <div class="team-container" id="red3">
+                                                            <span class="font-bold">{"Team 3: "}</span>
+                                                            <Suspense fallback=move || {
+                                                                view! { Loading... }
+                                                            }>{team_number_view!(current_match, red, 2)}</Suspense>
+                                                            <Suspense fallback=move || {
+                                                                view! { <p>"Loading stats..."</p> }
+                                                            }>
+                                                                <div class="text-sm opacity-75 team-stats">
+                                                                    {team_data_view!(current_match, red, 2)}
+                                                                </div>
+                                                            </Suspense>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </Suspense>
-                                        </div>
-                                        <div class="team-container" id="red2">
-                                            <span class="font-bold">{"Team 2: "}</span>
-                                            <Suspense fallback=move || {
-                                                view! { Loading... }
-                                            }>{team_number_view!(current_match, red, 1)}</Suspense>
-                                            <Suspense fallback=move || {
-                                                view! { <p>"Loading stats..."</p> }
-                                            }>
-                                                <div class="text-sm opacity-75 team-stats">
-                                                    {team_data_view!(current_match, red, 1)}
-                                                </div>
-                                            </Suspense>
-                                        </div>
-                                        <div class="team-container" id="red3">
-                                            <span class="font-bold">{"Team 3: "}</span>
-                                            <Suspense fallback=move || {
-                                                view! { Loading... }
-                                            }>{team_number_view!(current_match, red, 2)}</Suspense>
-                                            <Suspense fallback=move || {
-                                                view! { <p>"Loading stats..."</p> }
-                                            }>
-                                                <div class="text-sm opacity-75 team-stats">
-                                                    {team_data_view!(current_match, red, 2)}
-                                                </div>
-                                            </Suspense>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div class="text-center flex flex-col justify-center items-center">
-                                <div class="flex justify-center mb-10">
-                                    <button
-                                        on:click=set_next_team_match
-                                        class="btn btn-primary"
-                                    >
-                                    Next Team Match
-                                    </button>
-                                </div>
-                                    <div class="text-2xl font-bold mb-2" id="matchNumber">
-                                        Match
-                                        <input
-                                            min="1"
-                                            max="999"
-                                            style="width: 60px !important; font-size: var(--text-xl) !important;"
-                                            class=".transparent-num !input !input-primary"
-                                            type="number"
-                                            prop:value=move || current_match_num.get().to_string()
-                                            on:keydown=prevent_invalid_input
-                                            on:onchange=update_match_number
-                                        />
-                                    </div>
-                                    <div class="badge badge-neutral" id="matchTime">
+                                                <div class="text-center flex flex-col justify-center items-center">
+                                                    <div class="flex justify-center mb-6">
+                                                        <button
+                                                            on:click=set_next_team_match
+                                                            class="btn btn-primary"
+                                                        >
+                                                            Next Team Match
+                                                        </button>
+                                                    </div>
+                                                    <div class="text-2xl font-bold mb-2" id="matchNumber">
+                                                        Match
+                                                        <input
+                                                            min="1"
+                                                            max="999"
+                                                            style="width: 60px !important; font-size: var(--text-xl) !important;"
+                                                            class=".transparent-num !input !input-primary"
+                                                            type="number"
+                                                            prop:value=move || current_match_num.get().to_string()
+                                                            on:keydown=prevent_invalid_input
+                                                            on:onchange=update_match_number
+                                                        />
+                                                    </div>
+                                                    <div class="badge badge-neutral" id="matchTime">
 
-                                        Time:
-                                        <Suspense fallback=move || {
-                                            view! { <span>Loading...</span> }
-                                        }>
-                                            {move || {
-                                                match current_match.get() {
-                                                    Some(Some(match_data)) => {
-                                                        format_timestamp(match_data.predicted_time as i64)
+                                                        Time:
+                                                        <Suspense fallback=move || {
+                                                            view! { <span>Loading...</span> }
+                                                        }>
+                                                            {move || {
+                                                                match current_match.get() {
+                                                                    Some(Some(match_data)) => {
+                                                                        format_timestamp(match_data.predicted_time as i64)
+                                                                    }
+                                                                    Some(None) => "Error".to_owned(),
+                                                                    None => "TBD".to_owned(),
+                                                                }
+                                                            }}
+                                                        </Suspense>
+
+                                                    </div>
+                                                </div>
+
+                                                <div class="flex-1">
+                                                    <h2 class="text-xl font-bold text-center text-primary mb-4 text-blue-600">
+                                                        Blue Alliance
+                                                    </h2>
+                                                    <div class="rounded-lg p-4 space-y-2">
+                                                        <div class="team-container" id="blue1">
+                                                            <span class="font-bold">{"Team 1: "}</span>
+                                                            <Suspense fallback=move || {
+                                                                view! { Loading... }
+                                                            }>{team_number_view!(current_match, blue, 0)}</Suspense>
+                                                            <Suspense fallback=move || {
+                                                                view! { <p>"Loading stats..."</p> }
+                                                            }>
+                                                                <div class="text-sm opacity-75 team-stats">
+                                                                    {team_data_view!(current_match, blue, 0)}
+                                                                </div>
+                                                            </Suspense>
+                                                        </div>
+                                                        <div class="team-container" id="blue2">
+                                                            <span class="font-bold">{"Team 2: "}</span>
+                                                            <Suspense fallback=move || {
+                                                                view! { Loading... }
+                                                            }>{team_number_view!(current_match, blue, 1)}</Suspense>
+                                                            <Suspense fallback=move || {
+                                                                view! { <p>"Loading stats..."</p> }
+                                                            }>
+                                                                <div class="text-sm opacity-75 team-stats">
+                                                                    {team_data_view!(current_match, blue, 1)}
+                                                                </div>
+                                                            </Suspense>
+                                                        </div>
+                                                        <div class="team-container" id="blue3">
+                                                            <span class="font-bold">{"Team 3: "}</span>
+                                                            <Suspense fallback=move || {
+                                                                view! { Loading... }
+                                                            }>{team_number_view!(current_match, blue, 2)}</Suspense>
+                                                            <Suspense fallback=move || {
+                                                                view! { <p>"Loading stats..."</p> }
+                                                            }>
+                                                                <div class="text-sm opacity-75 team-stats">
+                                                                    {team_data_view!(current_match, blue, 2)}
+                                                                </div>
+                                                            </Suspense>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-center mt-6">
+                                                <button
+                                                    class="btn btn-outline"
+                                                    id="refreshNextMatch"
+                                                    on:click=move |_| {
+                                                        current_match.refetch();
+                                                        data.refetch();
                                                     }
-                                                    Some(None) => "Error".to_owned(),
-                                                    None => "TBD".to_owned(),
-                                                }
-                                            }}
-                                        </Suspense>
-
-                                    </div>
-                                </div>
-
-                                <div class="flex-1">
-                                    <h2 class="text-xl font-bold text-center text-primary mb-4 text-blue-600">
-                                        Blue Alliance
-                                    </h2>
-                                    <div class="rounded-lg p-4 space-y-2">
-                                        <div class="team-container" id="blue1">
-                                            <span class="font-bold">{"Team 1: "}</span>
-                                            <Suspense fallback=move || {
-                                                view! { Loading... }
-                                            }>{team_number_view!(current_match, blue, 0)}</Suspense>
-                                            <Suspense fallback=move || {
-                                                view! { <p>"Loading stats..."</p> }
-                                            }>
-                                                <div class="text-sm opacity-75 team-stats">
-                                                    {team_data_view!(current_match, blue, 0)}
-                                                </div>
-                                            </Suspense>
-                                        </div>
-                                        <div class="team-container" id="blue2">
-                                            <span class="font-bold">{"Team 2: "}</span>
-                                            <Suspense fallback=move || {
-                                                view! { Loading... }
-                                            }>{team_number_view!(current_match, blue, 1)}</Suspense>
-                                            <Suspense fallback=move || {
-                                                view! { <p>"Loading stats..."</p> }
-                                            }>
-                                                <div class="text-sm opacity-75 team-stats">
-                                                    {team_data_view!(current_match, blue, 1)}
-                                                </div>
-                                            </Suspense>
-                                        </div>
-                                        <div class="team-container" id="blue3">
-                                            <span class="font-bold">{"Team 3: "}</span>
-                                            <Suspense fallback=move || {
-                                                view! { Loading... }
-                                            }>{team_number_view!(current_match, blue, 2)}</Suspense>
-                                            <Suspense fallback=move || {
-                                                view! { <p>"Loading stats..."</p> }
-                                            }>
-                                                <div class="text-sm opacity-75 team-stats">
-                                                    {team_data_view!(current_match, blue, 2)}
-                                                </div>
-                                            </Suspense>
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        class="h-5 w-5 mr-2"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            stroke-linecap="round"
+                                                            stroke-linejoin="round"
+                                                            stroke-width="2"
+                                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                        />
+                                                    </svg>
+                                                    Refresh
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div class="flex justify-center mt-6">
-                                <button
-                                    class="btn btn-outline"
-                                    id="refreshNextMatch"
-                                    on:click=move |_| {
-                                        current_match.refetch();
-                                        data.refetch();
-                                    }
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-5 w-5 mr-2"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                        />
-                                    </svg>
-                                    Refresh
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                            }
+                                .into_any()
+                        }
+                    }}
+                </Suspense>
             </div>
         </PageWrapper>
     }

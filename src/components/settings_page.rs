@@ -2,24 +2,22 @@
 #[allow(unused_imports)]
 use crate::api_config;
 
+use crate::components::PageWrapper;
+use crate::BlueScoutError;
 use leptos::{ev, logging, prelude::*, task::spawn_local};
 use tbaapi::models::Event as TBAEvent;
 use web_sys::{window, Event};
 
-use crate::components::PageWrapper;
-
 #[server]
-pub async fn get_frc_events() -> Result<Vec<TBAEvent>, ServerFnError> {
+pub async fn get_frc_events() -> Result<Vec<TBAEvent>, BlueScoutError> {
     #[cfg(feature = "ssr")]
-    {
-        crate::api::get_frc_events()
-            .await
-            .map_err(ServerFnError::new)
-    }
+    return crate::api::get_frc_events()
+        .await
+        .map_err(BlueScoutError::api_error);
     #[cfg(not(feature = "ssr"))]
     {
         panic!("This should be called on the server!");
-    }
+    };
 }
 
 #[component]
@@ -254,7 +252,7 @@ pub fn SettingsPage() -> impl IntoView {
                                                                     view! {
                                                                         <li>
                                                                             <a on:click=move |_| select_option(
-                                                                                event_name.clone().unwrap_or_else(String::new),
+                                                                                event_name.clone().unwrap_or_default(),
                                                                             )>{event.short_name.clone()}</a>
                                                                         </li>
                                                                     }
