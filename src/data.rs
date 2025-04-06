@@ -128,27 +128,27 @@ define_struct!(
 
 define_reduced_columns!(
     DataPoint,
-    "Match" @ Normal => s.match_number.to_string(),
-    "Team" @ Normal => s.team_number.to_string(),
-    "Auto Coral" @ Normal => s.auto_coral.to_string(),
-    "Auto Leave" @ Select => if s.auto_leave { "Yes".to_string() } else { "No".to_string() },
-    "Algae Clear" @ Select => if s.algae_clear { "Yes".to_string() } else { "No".to_string() },
-    "Teleop Coral" @ Normal => (s.l1_coral + s.l2_coral + s.l3_coral + s.l4_coral).to_string(),
-    "Teleop Algae" @ Normal => (s.algae_barge + s.algae_floor_hole).to_string(),
-    "Climb" @ Checklist => s.climb.clone(),
-    "Defense" @ Select => if s.defense_bot { "Yes".to_string() } else { "No".to_string() },
+    "Match" @ Normal => |s: &Self| s.match_number.to_string(),
+    "Team" @ Normal => |s: &Self| s.team_number.to_string(),
+    "Auto Coral" @ Normal => |s: &Self| s.auto_coral.to_string(),
+    "Auto Leave" @ Select => |s: &Self| if s.auto_leave { "Yes".to_string() } else { "No".to_string() },
+    "Algae Clear" @ Select => |s: &Self| if s.algae_clear { "Yes".to_string() } else { "No".to_string() },
+    "Teleop Coral" @ Normal => |s: &Self| (s.l1_coral + s.l2_coral + s.l3_coral + s.l4_coral).to_string(),
+    "Teleop Algae" @ Normal => |s: &Self| (s.algae_barge + s.algae_floor_hole).to_string(),
+    "Climb" @ Checklist => |s: &Self| s.climb.clone(),
+    "Defense" @ Select => |s: &Self| if s.defense_bot { "Yes".to_string() } else { "No".to_string() },
 );
 
 define_team_data!(
     DataPoint,
-    "Avg Coral" => {
+    "Avg Coral" => |v: &[DataPoint]| {
         format!("{:.1}", v
             .iter()
             .map(|x| (x.l4_coral + x.l3_coral + x.l2_coral + x.l1_coral) as u32)
             .sum::<u32>() as f64
         / v.len() as f64)
     },
-    "Avg Auto Coral" => {
+    "Avg Auto Coral" => |v: &[DataPoint]|{
         format!("{:.1}",
         v
             .iter()
@@ -156,14 +156,14 @@ define_team_data!(
             .sum::<u32>() as f64
         / v.len() as f64)
     },
-    "Avg Barge Algae" => {
+    "Avg Barge Algae" => |v: &[DataPoint]|{
         format!("{:.1}", v
             .iter()
             .map(|x| x.algae_barge as u32)
             .sum::<u32>() as f64
             / v.len() as f64)
     },
-    "Scoring Locations" => {
+    "Scoring Locations" => |v: &[DataPoint]|{
         let (score_l1, score_l2, score_l3, score_l4) = (
             v.iter().filter(|x| x.l1_coral > 0).count() as u32,
             v.iter().filter(|x| x.l2_coral > 0).count() as u32,
@@ -182,10 +182,10 @@ define_team_data!(
             .join(", ");
         if locations.is_empty() { "None".to_string() } else { locations }
     },
-    "Sum of Deep Climbs" => {
+    "Sum of Deep Climbs" => |v: &[DataPoint]|{
         v.iter().filter(|x| x.climb == "Deep").count() as u32
     },
-    "Sum of Not Attempted" => {
+    "Sum of Not Attempted" => |v: &[DataPoint]|{
         v.iter().filter(|x| x.climb == "Not Attempted").count() as u32
     }
 );

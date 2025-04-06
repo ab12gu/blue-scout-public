@@ -12,7 +12,6 @@ pub fn api_config() -> &'static tbaapi::apis::configuration::Configuration {
 
 pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
 
-use std::ops::{Deref, DerefMut};
 use std::sync::atomic::AtomicBool;
 
 use chrono::NaiveDate;

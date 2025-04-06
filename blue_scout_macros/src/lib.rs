@@ -536,8 +536,7 @@ pub fn define_reduced_columns(input: TokenStream) -> TokenStream {
         quote! {
             #column_name => {
                 {
-                    let s = self;
-                    #expr
+                    (#expr)(self)
                 }
             }
         }
@@ -667,13 +666,13 @@ pub fn define_team_data(input: TokenStream) -> TokenStream {
     let team_data_closures = parsed.columns.iter().map(|col| {
         let expr = &col.expr;
         let column_name = col.name.value();
-        quote! { leptos::html::p().child(format!("{}: {}", #column_name, #expr)) }
+        quote! { leptos::html::p().child(format!("{}: {}", #column_name, (#expr)(data))) }
     });
 
     // Generate the implementation
     let output = quote! {
         impl #struct_name {
-            pub fn view_team_data(v: &[#struct_name]) -> leptos::prelude::AnyView {
+            pub fn view_team_data(data: &[#struct_name]) -> leptos::prelude::AnyView {
                 use leptos::prelude::*;
                 view!{ <div class="team-data">{(vec![#(#team_data_closures),*]).into_any()}</div> }.into_any()
             }
