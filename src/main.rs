@@ -1,3 +1,21 @@
+//! This is the main entry point for the Blue Scout application.
+
+use axum::body::Body;
+#[cfg(feature = "ssr")]
+use axum::response::IntoResponse;
+use blue_scout::db::get_conn;
+use frozen_collections::FzScalarMap;
+use tbaapi::apis::configuration::Configuration;
+
+/// Initializes the team names by fetching data from the TBA API and storing it
+/// in a global variable.
+///
+/// This function is only compiled and executed if the `ssr` feature is enabled.
+///
+/// # Errors
+///
+/// Returns an `anyhow::Error` if there is an issue with the API request or data
+/// processing.
 #[cfg(feature = "ssr")]
 async fn init_team_names() -> anyhow::Result<()> {
     use blue_scout::{api_config, TEAM_NAMES};
@@ -8,42 +26,66 @@ async fn init_team_names() -> anyhow::Result<()> {
     let info: Vec<(u32, String)> = res
         .teams
         .into_iter()
-        .map(|team| {
-            (
-                team.key.trim_start_matches("frc").parse().unwrap(),
-                team.nickname,
-            )
+        .filter_map(|team| match team.key.trim_start_matches("frc").parse() {
+            Ok(val) => Some((val, team.nickname)),
+            Err(err) => {
+                tracing::error!("Error parsing team key: {err}");
+                None
+            }
         })
         .collect();
 
-    let mut team_names: Vec<Option<String>> =
-        vec![None; info.iter().map(|x| x.0).max().unwrap() as usize + 1];
-
-    for team in info {
-        team_names[team.0 as usize] = Some(team.1);
+    if info.is_empty() {
+        return Err(anyhow::anyhow!("Team keys is empty"));
     }
 
-    TEAM_NAMES.set(team_names).unwrap();
+    let team_names = FzScalarMap::new(info);
+
+    TEAM_NAMES
+        .set(team_names)
+        .expect("TEAM_NAMES should not be set yet");
 
     Ok(())
 }
 
-#[cfg(feature = "ssr")]
-use axum::response::IntoResponse;
-
-use tbaapi::apis::configuration::Configuration;
-
+/// Generates an XLSX file containing data from the `scout_entries` table in the
+/// database.
+///
+/// This function queries all columns (excluding `id`) from the `scout_entries`
+/// table, formats the data, and writes it to an XLSX file. The file is then
+/// returned as an HTTP response with the appropriate content type.
+///
+/// # Errors
+///
+/// This function can return an `anyhow::Error` in the following cases:
+///
+/// - Failure to acquire a database connection.
+/// - Failure to prepare the SQL query.
+/// - Failure to execute the SQL query.
+/// - Failure to write data to the XLSX file.
+/// - Failure to save the workbook to the writer.
+/// - Failure to build the HTTP response.
+///
+/// # Panics
+///
+/// This function may panic if an unsupported data type is encountered when
+/// reading from the database.
+///
+/// # Returns
+///
+/// Returns a `Result` containing an `impl IntoResponse`, which represents the
+/// HTTP response with the XLSX file as the body.
 #[cfg(feature = "ssr")]
 pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
     use std::io::Cursor;
 
     use axum::response::Response;
-    use blue_scout::{data::DataPoint, db::DB};
+    use blue_scout::data::DataPoint;
     use duckdb::arrow::datatypes::DataType;
     use reqwest::header::CONTENT_TYPE;
     use rust_xlsxwriter::{workbook::Workbook, Format};
 
-    let conn = DB.get().unwrap().lock().await;
+    let conn = get_conn().await;
 
     let mut stmt = conn.prepare("SELECT * EXCLUDE(id) FROM scout_entries")?;
 
@@ -57,8 +99,7 @@ pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
         0,
         DataPoint::field_pretty_names()
             .iter()
-            .map(|(_, x)| x.to_string())
-            .collect::<Vec<String>>(),
+            .map(|&(_, x)| x.to_owned()),
         &bold,
     )?;
 
@@ -66,31 +107,32 @@ pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
     stmt.query_map([], |row| {
         for i in 0..row.as_ref().column_count() {
             let t: DataType = row.as_ref().column_type(i);
+            let current_column = u16::try_from(i).expect("Current column should be u16");
             match t {
                 DataType::Null => worksheet
-                    .write_string(current_row, i as u16, "NULL")
-                    .unwrap(),
+                    .write_string(current_row, current_column, "NULL")
+                    .expect("Writing to excel file should not fail"),
                 DataType::Boolean => worksheet
                     .write_string(
                         current_row,
-                        i as u16,
+                        current_column,
                         if row.get::<_, bool>(i)? { "Yes" } else { "No" },
                     )
-                    .unwrap(),
+                    .expect("Writing to excel file should not fail"),
                 DataType::Int8 | DataType::Int16 | DataType::Int32 | DataType::Int64 => worksheet
-                    .write_number(current_row, i as u16, row.get::<_, i64>(i)? as f64)
-                    .unwrap(),
+                    .write_number(current_row, current_column, row.get::<_, i64>(i)? as f64)
+                    .expect("Writing to excel file should not fail"),
                 DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
                     worksheet
-                        .write_number(current_row, i as u16, row.get::<_, u64>(i)? as f64)
-                        .unwrap()
+                        .write_number(current_row, current_column, row.get::<_, u64>(i)? as f64)
+                        .expect("Writing to excel file should not fail")
                 }
                 DataType::Float16 | DataType::Float32 | DataType::Float64 => worksheet
-                    .write_number(current_row, i as u16, row.get::<_, f64>(i)?)
-                    .unwrap(),
+                    .write_number(current_row, current_column, row.get::<_, f64>(i)?)
+                    .expect("Writing to excel file should not fail"),
                 DataType::Utf8 => worksheet
-                    .write_string(current_row, i as u16, row.get::<_, String>(i)?)
-                    .unwrap(),
+                    .write_string(current_row, current_column, row.get::<_, String>(i)?)
+                    .expect("Writing to excel file should not fail"),
                 _ => unimplemented!("Unsupported data type: {:?}", t),
             };
         }
@@ -98,6 +140,8 @@ pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
         Ok(())
     })?
     .count();
+
+    drop(conn);
 
     worksheet.autofit_to_max_width(300);
 
@@ -109,24 +153,12 @@ pub async fn generate_xlsx() -> anyhow::Result<impl IntoResponse> {
             CONTENT_TYPE,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        .body(axum::body::Body::from(buf.into_inner()))?)
+        .body(Body::from(buf.into_inner()))?)
 }
 
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
-    if cfg!(feature = "ssr") && cfg!(feature = "hydrate") {
-        panic!("Both SSR and Hydration features are enabled! TODO: Fix");
-    }
-    use axum::{error_handling::HandleError, Router};
-    use blue_scout::{app::*, db::init_db, API_CONFIG};
-    use dotenv::dotenv;
-    use leptos::logging::log;
-    use leptos::prelude::*;
-    use leptos_axum::{generate_route_list, LeptosRoutes};
-    use reqwest::StatusCode;
-    use tbaapi::apis::configuration::ApiKey;
-
     async fn handle_anyhow_error(err: anyhow::Error) -> (StatusCode, String) {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -134,24 +166,46 @@ async fn main() {
         )
     }
 
+    use axum::{error_handling::HandleError, Router};
+    use blue_scout::{
+        app::{shell, App},
+        db::init_db,
+        API_CONFIG,
+    };
+    use dotenv::dotenv;
+    use leptos::logging::log;
+    use leptos::prelude::*;
+    use leptos_axum::{generate_route_list, LeptosRoutes as _};
+    use reqwest::StatusCode;
+    use tbaapi::apis::configuration::ApiKey;
+
+    assert!(
+        !(cfg!(feature = "ssr") && cfg!(feature = "hydrate")),
+        "Both SSR and Hydration features are enabled! TODO: Fix"
+    );
+
     tracing_subscriber::fmt::init();
-    dotenv().ok();
+    if dotenv().is_err() {
+        tracing::warn!("No .env file found");
+    }
 
     let config = Configuration {
         api_key: Some(ApiKey {
             prefix: None,
-            key: std::env::var("TBA_API_KEY").unwrap(),
+            key: std::env::var("TBA_API_KEY").expect("TBA_API_KEY must be set"),
         }),
         ..Configuration::default()
     };
 
-    API_CONFIG.set(config).unwrap();
+    API_CONFIG.set(config).expect("This should not be set yet");
 
-    init_team_names().await.unwrap();
+    init_team_names().await.expect("TODO: Handle error");
 
-    init_db().await.unwrap();
+    init_db()
+        .await
+        .expect("DB should be able to be initialized");
 
-    let conf = get_configuration(None).unwrap();
+    let conf = get_configuration(None).expect("Configuration should be set");
     let addr = conf.leptos_options.site_addr;
     let leptos_options = conf.leptos_options;
     // Generate the list of routes in your Leptos App
@@ -178,10 +232,12 @@ async fn main() {
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`
     log!("listening on http://{}", &addr);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .expect("Port should be free");
     axum::serve(listener, app.into_make_service())
         .await
-        .unwrap();
+        .expect("Server should start");
 }
 
 #[cfg(not(feature = "ssr"))]

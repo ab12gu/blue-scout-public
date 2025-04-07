@@ -1,10 +1,14 @@
+//! This module defines API endpoints for fetching match and event data.
+//!
+//! It uses the `tbaapi` crate to interact with The Blue Alliance (TBA) API
+//! and the `duckdb` crate to query a local database for scouting data.
+
 #![cfg(feature = "ssr")]
 
 use std::collections::HashMap;
 
-use chrono::Datelike;
-
-use serde::{Deserialize, Serialize};
+use chrono::Datelike as _;
+use frozen_collections::MapQuery as _;
 use tbaapi::{
     apis::{event_api::get_events_by_year, match_api::get_event_matches_simple},
     models::{match_simple::CompLevel, Event},
@@ -12,34 +16,26 @@ use tbaapi::{
 
 use crate::{api_config, data::DataPoint, db::DB, BlueScoutError, MatchInfo, TeamInfo, TEAM_NAMES};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Match {
-    actual_time: Option<u64>,
-    alliances: Alliances,
-    comp_level: String,
-    event_key: String,
-    key: String,
-    match_number: u32,
-    predicted_time: u64,
-    set_number: u32,
-    time: u64,
-    winning_alliance: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Alliances {
-    blue: Alliance,
-    red: Alliance,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Alliance {
-    dq_team_keys: Vec<String>,
-    score: u32,
-    surrogate_team_keys: Vec<String>,
-    team_keys: Vec<String>,
-}
-
+/// Fetches match information for a given match number and event.
+///
+/// # Arguments
+///
+/// * `match_number` - The match number to fetch information for.
+/// * `event` - The event key.
+///
+/// # Returns
+///
+/// A `Result` containing `MatchInfo` on success or `BlueScoutError` on failure.
+///
+/// # Errors
+///
+/// This function returns an error if the match number is not found or if there
+/// is an issue with the database connection or api.
+///
+/// # Panics
+///
+/// Panics if the database connection is not initialized or if the team numbers
+/// are not integers.
 pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo, BlueScoutError> {
     let matches = get_event_matches_simple(api_config(), event)
         .await
@@ -48,14 +44,18 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
     let target_match = matches
         .iter()
         .find(|x| x.match_number == match_number && x.comp_level == CompLevel::Qm)
-        .unwrap();
+        .ok_or_else(|| anyhow::anyhow!("Match number not found"))?;
 
     let red_team: Vec<usize> = target_match
         .alliances
         .red
         .team_keys
         .iter()
-        .map(|x| x.trim_start_matches("frc").parse::<usize>().unwrap())
+        .map(|x| {
+            x.trim_start_matches("frc")
+                .parse::<usize>()
+                .expect("Team number should be a number")
+        })
         .collect();
 
     if red_team.len() != 3 {
@@ -70,7 +70,11 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
         .blue
         .team_keys
         .iter()
-        .map(|x| x.trim_start_matches("frc").parse::<usize>().unwrap())
+        .map(|x| {
+            x.trim_start_matches("frc")
+                .parse::<usize>()
+                .expect("Team number should be a number")
+        })
         .collect();
 
     if blue_team.len() != 3 {
@@ -84,7 +88,7 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
     let conn = db.lock().await;
 
     let mut stmt = conn
-    .prepare("SELECT * FROM scout_entries WHERE team_number = ?1 OR team_number = ?2 OR team_number = ?3 OR team_number = ?4 OR team_number = ?5 OR team_number = ?6")?;
+        .prepare("SELECT * FROM scout_entries WHERE team_number = ?1 OR team_number = ?2 OR team_number = ?3 OR team_number = ?4 OR team_number = ?5 OR team_number = ?6")?;
     let entry_iter = stmt.query_map(
         [
             &red_team[0],
@@ -99,18 +103,25 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
 
     let data_points = entry_iter.collect::<Result<Vec<DataPoint>, _>>()?;
 
+    drop(conn);
+
+    let err_map = |_| anyhow::anyhow!("Team number shouldn't be larger than 32 bits");
+
     let mut team_data: HashMap<u32, Vec<DataPoint>> = [
-        (red_team[0] as u32, Vec::new()),
-        (red_team[1] as u32, Vec::new()),
-        (red_team[2] as u32, Vec::new()),
-        (blue_team[0] as u32, Vec::new()),
-        (blue_team[1] as u32, Vec::new()),
-        (blue_team[2] as u32, Vec::new()),
+        (u32::try_from(red_team[0]).map_err(err_map)?, Vec::new()),
+        (u32::try_from(red_team[1]).map_err(err_map)?, Vec::new()),
+        (u32::try_from(red_team[2]).map_err(err_map)?, Vec::new()),
+        (u32::try_from(blue_team[0]).map_err(err_map)?, Vec::new()),
+        (u32::try_from(blue_team[1]).map_err(err_map)?, Vec::new()),
+        (u32::try_from(blue_team[2]).map_err(err_map)?, Vec::new()),
     ]
     .into();
 
     for data in data_points {
-        team_data.get_mut(&data.team_number).unwrap().push(data);
+        team_data
+            .get_mut(&data.team_number)
+            .expect("Team number should have been inserted earlier")
+            .push(data);
     }
 
     let mut match_info = MatchInfo::empty();
@@ -121,19 +132,18 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
             blue_team
                 .iter()
                 .position(|&x| x == team_number as usize)
-                .unwrap()
+                .expect("team number should have been inserted earlier")
         } else {
             red_team
                 .iter()
                 .position(|&x| x == team_number as usize)
-                .unwrap()
+                .expect("team number should have been inserted earlier")
         };
         let team_name = TEAM_NAMES
             .get()
-            .unwrap()
-            .get(team_number as usize)
-            .cloned()
-            .flatten();
+            .expect("TEAM_NAMES should have been initialized")
+            .get(&team_number)
+            .cloned();
         if data.is_empty() {
             if is_blue_team {
                 match_info.blue[team_index] = TeamInfo {
@@ -166,11 +176,21 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
         }
     }
 
-    match_info.predicted_time = target_match.predicted_time.unwrap_or(0) as u64;
+    match_info.predicted_time = target_match.predicted_time.unwrap_or(0);
 
     Ok(match_info)
 }
 
+/// Fetches the list of FRC events for the current year.
+///
+/// # Returns
+///
+/// A `Result` containing a vector of `Event` on success or `anyhow::Error` on
+/// failure.
+///
+/// # Errors
+///
+/// This function returns an error if the API request fails.
 pub async fn get_frc_events() -> Result<Vec<Event>, anyhow::Error> {
     Ok(get_events_by_year(api_config(), chrono::Utc::now().year()).await?)
 }

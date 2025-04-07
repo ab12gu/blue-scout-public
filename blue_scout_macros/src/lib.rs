@@ -150,7 +150,8 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
     // Get the struct name
     let struct_name = &input.name;
 
-    // Create a constant name based on the struct name (e.g., Person -> PERSON_FIELDS)
+    // Create a constant name based on the struct name (e.g., Person ->
+    // PERSON_FIELDS)
     let const_name = Ident::new(
         &format!("{}_FIELDS", struct_name.to_string().to_uppercase()),
         struct_name.span(),
@@ -183,7 +184,8 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
         quote! { pub #name: #ty }
     });
 
-    // Generate the field definitions for the InsertDataArgs, which replaces bool with Option<String>
+    // Generate the field definitions for the InsertDataArgs, which replaces bool
+    // with Option<String>
     let insert_data_args_fields = input.fields.iter().map(|field| {
         let name = &field.name;
         let ty = &field.ty;
@@ -403,12 +405,14 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
     // Generate implementation
     let output = quote! {
         // Define the struct with public fields
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+        #[non_exhaustive]
         pub struct #struct_name {
             #(#fields),*
         }
 
         #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+        #[non_exhaustive]
         pub struct InsertDataArgs {
             #(#insert_data_args_fields),*
         }

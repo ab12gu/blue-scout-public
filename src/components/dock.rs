@@ -1,6 +1,9 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_location;
 
+/// A component that renders a dock with three buttons: Add Data, View Data, and
+/// Settings. The buttons change their appearance based on the current location
+/// path.
 #[component]
 pub fn Dock() -> impl IntoView {
     view! {

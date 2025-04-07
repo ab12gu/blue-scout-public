@@ -1,8 +1,18 @@
-#![allow(unused_variables)]
+#![allow(unused_variables, clippy::missing_docs_in_private_items)]
 use leptos::{ev, html, prelude::*};
 
 use crate::{components::PageWrapper, data::InsertDataArgs, BlueScoutError};
 
+/// Asynchronous server function to insert data.
+///
+/// # Arguments
+///
+/// * `args` - The data to be inserted.
+///
+/// # Returns
+///
+/// * `Result<(), BlueScoutError>` - Returns `Ok(())` if successful, otherwise
+///   returns a `BlueScoutError`.
 #[server]
 pub async fn insert_data(args: InsertDataArgs) -> Result<(), BlueScoutError> {
     #[cfg(feature = "ssr")]
@@ -21,6 +31,7 @@ pub async fn insert_data(args: InsertDataArgs) -> Result<(), BlueScoutError> {
     }
 }
 
+/// Component representing the home page.
 #[component]
 pub fn HomePage() -> impl IntoView {
     let (loading, set_loading) = signal(false);
@@ -76,7 +87,7 @@ pub fn HomePage() -> impl IntoView {
         {
             use js_sys::encode_uri_component;
             use leptos::task::spawn_local;
-            use wasm_bindgen::JsCast;
+            use wasm_bindgen::JsCast as _;
             use web_sys::{FormData, MouseEvent};
             ev.prevent_default();
 
@@ -90,7 +101,7 @@ pub fn HomePage() -> impl IntoView {
                 let form_data = match FormData::new_with_form(&form_element) {
                     Ok(data) => data,
                     Err(e) => {
-                        let error_str = format!("Failed to create FormData: {:?}", e);
+                        let error_str = format!("Failed to create FormData: {e:?}");
                         leptos::logging::error!("{}", error_str);
                         set_error_message.set(Some(error_str));
                         set_loading.set(false);
@@ -99,15 +110,12 @@ pub fn HomePage() -> impl IntoView {
                 };
 
                 let mut form_data_string = String::new();
-                let entries = match js_sys::try_iter(&form_data) {
-                    Ok(Some(iter)) => iter,
-                    _ => {
-                        let error_str = "Failed to get FormData iterator".to_string();
-                        leptos::logging::error!("{}", error_str);
-                        set_error_message.set(Some(error_str));
-                        set_loading.set(false);
-                        return;
-                    }
+                let Ok(Some(entries)) = js_sys::try_iter(&form_data) else {
+                    let error_str = "Failed to get FormData iterator".to_owned();
+                    leptos::logging::error!("{}", error_str);
+                    set_error_message.set(Some(error_str));
+                    set_loading.set(false);
+                    return;
                 };
 
                 for entry_result in entries {
@@ -134,9 +142,8 @@ pub fn HomePage() -> impl IntoView {
                             }
                         }
                         Err(e) => {
-                            let error_str = format!("Error iterating FormData: {:?}", e);
+                            let error_str = format!("Error iterating FormData: {e:?}");
                             leptos::logging::error!("{}", error_str);
-                            continue;
                         }
                     }
                 }
@@ -149,41 +156,44 @@ pub fn HomePage() -> impl IntoView {
 
                 match request.send().await {
                     Ok(response) => {
-                        if !response.status().is_success() {
-                            let status = response.status();
-                            let error_text = response.text().await.unwrap_or_else(|_| {
-                                "Failed to read error response body".to_string()
-                            });
-                            let error_str =
-                                format!("HTTP error! Status: {}, Message: {}", status, error_text);
-                            leptos::logging::error!("{}", error_str);
-                            set_error_message.set(Some(error_str));
-                        } else {
+                        if response.status().is_success() {
                             match response.text().await {
                                 Ok(result) => {
-                                    // The original JS checks if the result is literally the string "null"
+                                    // The original JS checks if the result is literally the string
+                                    // "null"
                                     if result == "null" {
                                         leptos::logging::log!("Form submitted successfully!");
                                         form_element.reset();
-                                        reset_counters(MouseEvent::new("click").unwrap());
+                                        reset_counters(
+                                            MouseEvent::new("click").expect("This shouldn't fail"),
+                                        );
                                     } else {
                                         // Handle unexpected successful response content
-                                        let error_str = format!("Form submission succeeded but received unexpected response: {}", result);
+                                        let error_str = format!("Form submission succeeded but received unexpected response: {result}");
                                         leptos::logging::warn!("{}", error_str); // Use warn maybe?
                                         set_error_message.set(Some(error_str));
                                     }
                                 }
                                 Err(e) => {
                                     let error_str =
-                                        format!("Failed to read success response body: {:?}", e);
+                                        format!("Failed to read success response body: {e:?}");
                                     leptos::logging::error!("{}", error_str);
                                     set_error_message.set(Some(error_str));
                                 }
                             }
+                        } else {
+                            let status = response.status();
+                            let error_text = response.text().await.unwrap_or_else(|_| {
+                                "Failed to read error response body".to_owned()
+                            });
+                            let error_str =
+                                format!("HTTP error! Status: {status}, Message: {error_text}");
+                            leptos::logging::error!("{}", error_str);
+                            set_error_message.set(Some(error_str));
                         }
                     }
                     Err(e) => {
-                        let error_str = format!("Network or request error: {:?}", e);
+                        let error_str = format!("Network or request error: {e:?}");
                         leptos::logging::error!("{}", error_str);
                         set_error_message.set(Some(error_str));
                     }

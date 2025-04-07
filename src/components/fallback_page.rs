@@ -4,6 +4,9 @@ use crate::api_config;
 
 use leptos::prelude::*;
 
+/// A component that renders a fallback page for 404 errors.
+/// The page includes a message indicating that the page was not found
+/// and a button to navigate back to the home page.
 #[component]
 pub fn FallbackPage() -> impl IntoView {
     view! {

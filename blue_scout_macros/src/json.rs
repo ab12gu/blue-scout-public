@@ -225,7 +225,7 @@ pub fn generate_js_value_code(value: JsonValueInput) -> proc_macro2::TokenStream
                         &object,
                         &wasm_bindgen::JsValue::from(#key),
                         &#value_code,
-                    ).unwrap(); // Consider error handling
+                    ).expect("Object should be an object"); // Consider error handling
                 }
             });
             quote_spanned! {span=>

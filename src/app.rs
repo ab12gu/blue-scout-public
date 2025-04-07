@@ -1,5 +1,6 @@
+#![allow(clippy::must_use_candidate, clippy::exhaustive_structs)]
 use leptos::prelude::*;
-use leptos_meta::*;
+use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
     components::{Route, Router, Routes},
     StaticSegment,
@@ -7,6 +8,7 @@ use leptos_router::{
 
 use crate::components::{FallbackPage, HomePage, SettingsPage, ViewDataPage};
 
+#[must_use]
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>
@@ -32,6 +34,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 }
 
 #[component]
+#[must_use]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();

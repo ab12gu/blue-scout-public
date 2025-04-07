@@ -43,15 +43,14 @@ blue_scout_macros = { version = "0.1.0", path = "./blue_scout_macros" }
 js-sys = "0.3.77"
 serde_json = { version = "1.0.140", optional = true }
 tbaapi = { path = "./tbaapi" }
-serde-error = "0.1.3"
 thiserror = "2.0.12"
+frozen-collections = { version = "0.4.0", optional = true }
 
 [features]
 ssr = [
     "dep:axum",
     "dep:tokio",
     "dep:leptos_axum",
-
     "dep:dotenv",
     "dep:anyhow",
     "dep:serde_json",
@@ -62,9 +61,49 @@ ssr = [
     "dep:tower",
     "dep:duckdb",
     "dep:rust_xlsxwriter",
+    "dep:frozen-collections",
 ]
 default = ["hydrate", "ssr"]
 hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen"]
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
+too_many_lines = "allow"
+clone_on_ref_ptr = "warn"
+exhaustive_enums = "warn"
+exhaustive_structs = "warn"
+get_unwrap = "warn"
+if_then_some_else_none = "warn"
+map_with_unused_argument_over_ranges = "warn"
+missing_assert_message = "warn"
+missing_docs_in_private_items = "warn"
+mutex_atomic = "warn"
+mutex_integer = "warn"
+needless_raw_strings = "warn"
+panic_in_result_fn = "warn"
+pattern_type_mismatch = "warn"
+precedence_bits = "warn"
+rc_buffer = "warn"
+rc_mutex = "warn"
+redundant_type_annotations = "warn"
+return_and_then = "warn"
+std_instead_of_alloc = "warn"
+std_instead_of_core = "warn"
+str_to_string = "warn"
+string_to_string = "warn"
+try_err = "warn"
+unnecessary_self_imports = "warn"
+unneeded_field_pattern = "warn"
+unseparated_literal_suffix = "warn"
+unused_result_ok = "warn"
+unused_trait_names = "warn"
+unwrap_used = "warn"
+verbose_file_reads = "warn"
+cast_precision_loss = "allow"
+items_after_statements = "allow"
 
 [profile.dev]
 opt-level = 1

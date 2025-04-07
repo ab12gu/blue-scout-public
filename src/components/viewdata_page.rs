@@ -1,10 +1,11 @@
-#![allow(clippy::needless_return)]
+//! Provide the `ViewDataPage` component to view scouting data and match
+//! information.
+
+#![allow(clippy::needless_return, clippy::missing_docs_in_private_items)]
 
 #[cfg(feature = "ssr")]
 #[allow(unused_imports)]
 use crate::api_config;
-
-use std::ops::Deref;
 
 use chrono::{DateTime, Local};
 use leptos::{ev, prelude::*, task::spawn_local};
@@ -12,46 +13,54 @@ use web_sys::{window, Event, HtmlInputElement};
 
 use crate::{components::PageWrapper, data::DataPoint, BlueScoutError, MatchInfo};
 
-const CURRENT_MATCH: u32 = 1;
+/// Default match number to display when the page loads.
+const DEFAULT_MATCH: u32 = 1;
 
+/// Enables debug mode for the next match feature.
 const DEBUG_NEXT_MATCH: bool = true;
 
 #[cfg(feature = "hydrate")]
 mod jsalert {
+    //! Rust bindings for `SweetAlert2`.
     use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
     #[wasm_bindgen]
     extern "C" {
+        /// Calls the SweetAlert2 `fire` function with the given options.
         #[wasm_bindgen(js_namespace = Swal)]
         pub fn fire(options: &JsValue) -> js_sys::Promise;
     }
 }
 
+/// Displays an error message using `SweetAlert2`.
+///
+/// # Arguments
+///
+/// * `title` - The title of the error message.
+/// * `text` - The text of the error message.
+///
+/// # Returns
+///
+/// A `js_sys::Promise` that resolves when the alert is closed.
 fn show_error(title: &str, text: &str) -> js_sys::Promise {
     #[cfg(feature = "hydrate")]
     {
         use js_sys::{Object, Reflect};
-        use jsalert::*;
-        let data_theme = if let Some(window) = window() {
-            if let Some(document) = window.document() {
-                if let Some(html) = document.document_element() {
-                    html.get_attribute("data-theme")
-                        .unwrap_or_else(|| "light".to_string())
-                } else {
-                    "light".to_string()
-                }
-            } else {
-                "light".to_string()
-            }
-        } else {
-            "light".to_string()
-        };
+        use jsalert::fire;
+        use web_sys::{Document, Window};
+        let data_theme = window()
+            .and_then(|window: Window| window.document())
+            .and_then(|document: Document| document.document_element())
+            .and_then(|html| html.get_attribute("data-theme"))
+            .unwrap_or_else(|| "light".to_owned());
 
         let options = Object::new();
-        Reflect::set(&options, &"icon".into(), &"error".into()).unwrap();
-        Reflect::set(&options, &"title".into(), &title.into()).unwrap();
-        Reflect::set(&options, &"text".into(), &text.into()).unwrap();
-        Reflect::set(&options, &"theme".into(), &data_theme.into()).unwrap();
+        Reflect::set(&options, &"icon".into(), &"error".into())
+            .expect("Target should be an object");
+        Reflect::set(&options, &"title".into(), &title.into()).expect("Target should be an object");
+        Reflect::set(&options, &"text".into(), &text.into()).expect("Target should be an object");
+        Reflect::set(&options, &"theme".into(), &data_theme.into())
+            .expect("Target should be an object");
 
         fire(&options)
     }
@@ -59,6 +68,17 @@ fn show_error(title: &str, text: &str) -> js_sys::Promise {
     unreachable!("This should be called on the client");
 }
 
+/// Fetches the next match number for a given team at a specific event.
+///
+/// # Arguments
+///
+/// * `team_number` - The team number to fetch the next match for.
+/// * `event` - The event to fetch the next match for.
+///
+/// # Returns
+///
+/// A `Result` containing an `Option` with the next match number or a
+/// `BlueScoutError`.
 #[server]
 pub async fn next_team_match(
     team_number: u32,
@@ -72,12 +92,9 @@ pub async fn next_team_match(
                 .await
                 .map_err(BlueScoutError::api_error)?
                 .iter()
-                .filter_map(|x| {
-                    if x.actual_time.is_none() || DEBUG_NEXT_MATCH {
-                        Some(x.match_number as u32)
-                    } else {
-                        None
-                    }
+                .filter(|&x| x.actual_time.is_none() || DEBUG_NEXT_MATCH)
+                .map(|x| {
+                    u32::try_from(x.match_number).expect("Match number should not be negative")
                 })
                 .min(),
         )
@@ -89,6 +106,16 @@ pub async fn next_team_match(
     }
 }
 
+/// Fetches match data for a given match number and event.
+///
+/// # Arguments
+///
+/// * `match_number` - The match number to fetch data for.
+/// * `event` - The event to fetch match data for.
+///
+/// # Returns
+///
+/// A `Result` containing `MatchInfo` or a `BlueScoutError`.
 #[server(endpoint = "fetch_match_data")]
 pub async fn fetch_match_data(
     match_number: i32,
@@ -106,6 +133,11 @@ pub async fn fetch_match_data(
     }
 }
 
+/// Fetches scouting data from the database.
+///
+/// # Returns
+///
+/// A `Result` containing a `Vec` of `DataPoint` or a `BlueScoutError`.
 #[server(endpoint = "fetch_scouting_data")]
 pub async fn fetch_scouting_data() -> Result<Vec<DataPoint>, BlueScoutError> {
     #[cfg(feature = "ssr")]
@@ -120,27 +152,40 @@ pub async fn fetch_scouting_data() -> Result<Vec<DataPoint>, BlueScoutError> {
     }
 }
 
+/// Displays a boolean value as a string.
+///
+/// # Arguments
+///
+/// * `b` - The boolean value to display.
+///
+/// # Returns
+///
+/// A `String` representing the boolean value.
 #[inline]
 fn display_bool(b: bool) -> String {
     if b {
-        "Yes".to_string()
+        "Yes".to_owned()
     } else {
-        "No".to_string()
+        "No".to_owned()
     }
 }
 
+/// Macro to generate a view for team data.
+///
+/// # Arguments
+///
+/// * `$current_match` - The current match data.
+/// * `$team` - The team (red or blue).
+/// * `$index` - The index of the team
 macro_rules! team_data_view {
     ($current_match:expr, $team:ident, $index:expr) => {
         move || match $current_match.get() {
             Some(Some(match_data)) => {
                 let team_data = &match_data.$team[$index];
-                match &team_data.team_data {
-                    Some(data) => DataPoint::view_team_data(data),
-                    None => view! {
-                        <span class="team-number">No stats available</span>
-                    }
-                    .into_any(),
-                }
+                team_data.team_data.as_ref().map_or_else(
+                    || view! { <span class = "team-number"> No stats available </span> }.into_any(),
+                    |data| DataPoint::view_team_data(data),
+                )
             }
             Some(None) => view! {
                 <span>Error loading stats...</span>
@@ -154,6 +199,13 @@ macro_rules! team_data_view {
     };
 }
 
+/// Macro to generate a view for team numbers.
+///
+/// # Arguments
+///
+/// * `$current_match` - The current match data.
+/// * `$team` - The team (red or blue).
+/// * `$index` - The index of the team data.
 macro_rules! team_number_view {
     ($current_match:expr, $team:ident, $index:expr) => {
         move || {
@@ -184,13 +236,23 @@ macro_rules! team_number_view {
     };
 }
 
+/// Formats a timestamp into a human-readable string.
+///
+/// # Arguments
+///
+/// * `timestamp` - The timestamp to format.
+///
+/// # Returns
+///
+/// A `String` representing the formatted timestamp.
 fn format_timestamp(timestamp: i64) -> String {
     let datetime = DateTime::from_timestamp(timestamp, 0)
-        .unwrap()
+        .expect("DateTime should be valid")
         .with_timezone(&Local);
     datetime.format("%a %-I:%M %p").to_string()
 }
 
+/// Component to display the ViewDataPage.
 #[component]
 pub fn ViewDataPage() -> impl IntoView {
     let (use_full_names, set_use_full_names) = signal(false);
@@ -199,7 +261,7 @@ pub fn ViewDataPage() -> impl IntoView {
 
     let (team_number, set_team_number) = signal(None::<String>);
 
-    let (current_match_num, set_current_match_num) = signal(CURRENT_MATCH);
+    let (current_match_num, set_current_match_num) = signal(DEFAULT_MATCH);
 
     // Initialize values from localStorage on component mount
     Effect::new(move |_| {
@@ -224,12 +286,12 @@ pub fn ViewDataPage() -> impl IntoView {
         if use_full_names() {
             DataPoint::field_pretty_names()
                 .iter()
-                .map(|(_, name)| view! { <th>{name.to_string()}</th> })
+                .map(|&(_name, pretty_name)| view! { <th>{pretty_name.to_owned()}</th> })
                 .collect_view()
         } else {
             DataPoint::reduced_column_names()
                 .iter()
-                .map(|name| view! { <th>{name.to_string()}</th> })
+                .map(|&name| view! { <th>{name.to_owned()}</th> })
                 .collect_view()
         }
     };
@@ -238,9 +300,13 @@ pub fn ViewDataPage() -> impl IntoView {
     let current_match = Resource::new(
         move || (current_event.get(), current_match_num.get()),
         move |(current_event, current_match_num)| async move {
-            fetch_match_data(current_match_num as i32, current_event.unwrap_or_default())
-                .await
-                .ok()
+            fetch_match_data(
+                i32::try_from(current_match_num)
+                    .expect("Current match number should fit into a 32 bit signed integer"),
+                current_event.unwrap_or_default(),
+            )
+            .await
+            .ok()
         },
     );
 
@@ -253,23 +319,28 @@ pub fn ViewDataPage() -> impl IntoView {
     #[cfg(feature = "hydrate")]
     let mut init_table_filters = move |destroy_old: bool| {
         use crate::data::FilterType;
-        use crate::tablefilterjs::*;
+        use crate::tablefilterjs::TableFilter;
         use blue_scout_macros::js_json;
         use js_sys::Reflect;
-        use wasm_bindgen::{JsCast, JsValue};
+        use wasm_bindgen::{JsCast as _, JsValue};
         use web_sys::{window, HtmlTableElement};
 
         if destroy_old && table_filter.is_some() {
-            let tf = table_filter.take().unwrap();
+            let tf = table_filter
+                .take()
+                .expect("Table filter should exist as it has already been checked");
             tf.destroy();
         }
 
-        let document = window().unwrap().document().unwrap();
+        let document = window()
+            .expect("Window should exist")
+            .document()
+            .expect("Document should exist");
         let table = document
             .get_element_by_id("scouting_data_table")
-            .expect("Table element not found")
+            .expect("Table element should exist")
             .dyn_into::<HtmlTableElement>()
-            .unwrap();
+            .expect("Element should be a table");
 
         let base_options = js_json!({
             "base_path": "tablefilter/",
@@ -288,7 +359,7 @@ pub fn ViewDataPage() -> impl IntoView {
             ],
         });
 
-        for (i, (_, filter_type)) in (if use_full_names.get_untracked() {
+        for (i, &(_, filter_type)) in (if use_full_names.get_untracked() {
             DataPoint::field_filter_types()
         } else {
             DataPoint::field_filter_types_reduced()
@@ -296,13 +367,13 @@ pub fn ViewDataPage() -> impl IntoView {
         .iter()
         .enumerate()
         {
-            if *filter_type != FilterType::Normal {
+            if filter_type != FilterType::Normal {
                 Reflect::set(
                     &base_options,
                     &JsValue::from_str(&format!("col_{i}")),
                     &JsValue::from_str(&filter_type.to_string()),
                 )
-                .unwrap();
+                .expect("Base options should be an object");
             }
         }
 
@@ -388,7 +459,7 @@ pub fn ViewDataPage() -> impl IntoView {
                     "Team Number needs to be set in settings for this feature to work!",
                 );
             }
-        })
+        });
     };
 
     view! {
@@ -424,8 +495,8 @@ pub fn ViewDataPage() -> impl IntoView {
                                     <Suspense fallback=move || {
                                         view! { <span>Loading...</span> }
                                     }>
-                                        {move || match data.read().deref() {
-                                            Some(Ok(items)) => {
+                                        {move || match *data.read() {
+                                            Some(Ok(ref items)) => {
                                                 items
                                                     .iter()
                                                     .map(|item| {
@@ -435,17 +506,20 @@ pub fn ViewDataPage() -> impl IntoView {
                                                                     DataPoint::field_names()
                                                                         .iter()
                                                                         .map(|name| {
-                                                                            let value = item.get_field(name).unwrap();
+                                                                            use crate::data::DataType;
+                                                                            let value = item
+                                                                                .get_field(name)
+                                                                                .expect("Field should exist");
                                                                             let string_value = match value {
-                                                                                crate::data::DataType::U16(val) => val.to_string(),
-                                                                                crate::data::DataType::U32(val) => val.to_string(),
-                                                                                crate::data::DataType::U64(val) => val.to_string(),
-                                                                                crate::data::DataType::I16(val) => val.to_string(),
-                                                                                crate::data::DataType::I32(val) => val.to_string(),
-                                                                                crate::data::DataType::I64(val) => val.to_string(),
-                                                                                crate::data::DataType::String(val) => val,
-                                                                                crate::data::DataType::Bool(val) => display_bool(val),
-                                                                                crate::data::DataType::Float(val) => format!("{:.2}", val),
+                                                                                DataType::U16(val) => val.to_string(),
+                                                                                DataType::U32(val) => val.to_string(),
+                                                                                DataType::U64(val) => val.to_string(),
+                                                                                DataType::I16(val) => val.to_string(),
+                                                                                DataType::I32(val) => val.to_string(),
+                                                                                DataType::I64(val) => val.to_string(),
+                                                                                DataType::String(val) => val,
+                                                                                DataType::Bool(val) => display_bool(val),
+                                                                                DataType::Float(val) => format!("{val:.2}"),
                                                                             };
                                                                             view! { <td>{string_value}</td> }
                                                                         })
@@ -454,8 +528,9 @@ pub fn ViewDataPage() -> impl IntoView {
                                                                 } else {
                                                                     item.get_reduced_columns()
                                                                         .iter()
+                                                                        .cloned()
                                                                         .map(|(_, value)| {
-                                                                            view! { <td>{value.clone()}</td> }
+                                                                            view! { <td>{value}</td> }
                                                                         })
                                                                         .collect_view()
                                                                         .into_any()
@@ -534,9 +609,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                             <Suspense fallback=move || {
                                                                 view! { <p>"Loading stats..."</p> }
                                                             }>
-                                                                <div class="text-sm opacity-75 team-stats">
-                                                                    {team_data_view!(current_match, red, 0)}
-                                                                </div>
+                                                                <div class="text-sm opacity-75 team-stats">{}</div>
                                                             </Suspense>
                                                         </div>
                                                         <div class="team-container" id="red2">
@@ -599,7 +672,7 @@ pub fn ViewDataPage() -> impl IntoView {
                                                             {move || {
                                                                 match current_match.get() {
                                                                     Some(Some(match_data)) => {
-                                                                        format_timestamp(match_data.predicted_time as i64)
+                                                                        format_timestamp(match_data.predicted_time)
                                                                     }
                                                                     Some(None) => "Error".to_owned(),
                                                                     None => "TBD".to_owned(),

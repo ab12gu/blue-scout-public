@@ -1,3 +1,5 @@
+//! Provide the `SettingsPage` component to change settings
+
 #[cfg(feature = "ssr")]
 #[allow(unused_imports)]
 use crate::api_config;
@@ -8,6 +10,12 @@ use leptos::{ev, logging, prelude::*, task::spawn_local};
 use tbaapi::models::Event as TBAEvent;
 use web_sys::{window, Event};
 
+/// Fetches FRC events from the server.
+///
+/// # Returns
+///
+/// A `Result` containing a vector of `TBAEvent` on success, or a
+/// `BlueScoutError` on failure.
 #[server]
 pub async fn get_frc_events() -> Result<Vec<TBAEvent>, BlueScoutError> {
     #[cfg(feature = "ssr")]
@@ -20,12 +28,14 @@ pub async fn get_frc_events() -> Result<Vec<TBAEvent>, BlueScoutError> {
     };
 }
 
+/// The `SettingsPage` component allows users to configure settings such as
+/// theme, team number, and event selection.
 #[component]
 pub fn SettingsPage() -> impl IntoView {
     // Create signals for theme and team number
-    let (theme, set_theme) = signal("dark".to_string());
-    let (team_number, set_team_number) = signal("".to_string());
-    let (event_name, set_event_name) = signal("".to_string());
+    let (theme, set_theme) = signal("dark".to_owned());
+    let (team_number, set_team_number) = signal(String::new());
+    let (event_name, set_event_name) = signal(String::new());
     let (events_list, set_events_list) = signal(Vec::<TBAEvent>::new());
 
     Effect::new(move |_| {
@@ -106,7 +116,7 @@ pub fn SettingsPage() -> impl IntoView {
 
                 // Get saved event
                 if let Ok(Some(saved_event)) = storage.get_item("currentEventName") {
-                    set_event_name(saved_event.clone());
+                    set_event_name(saved_event);
                 }
             }
         }
@@ -116,7 +126,7 @@ pub fn SettingsPage() -> impl IntoView {
     let on_theme_change = move |ev: Event| {
         let is_checked = event_target_checked(&ev);
         let new_theme = if is_checked { "dark" } else { "light" };
-        set_theme(new_theme.to_string());
+        set_theme(new_theme.to_owned());
 
         // Update localStorage and document
         if let Some(window) = window() {
@@ -221,7 +231,7 @@ pub fn SettingsPage() -> impl IntoView {
                                     class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52 max-h-80 flex-nowrap overflow-auto absolute"
                                     class:hidden=move || {
                                         !dropdown_visible.get()
-                                            || filtered_options.with(|opts| opts.is_empty())
+                                            || filtered_options.with(Vec::is_empty)
                                     }
                                 >
                                     <Suspense>
