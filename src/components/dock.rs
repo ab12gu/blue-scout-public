@@ -1,3 +1,5 @@
+//! Dock component
+
 use leptos::prelude::*;
 use leptos_router::hooks::use_location;
 

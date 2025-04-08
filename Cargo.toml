@@ -46,6 +46,14 @@ tbaapi = { path = "./tbaapi" }
 thiserror = "2.0.12"
 frozen-collections = { version = "0.4.0", optional = true }
 
+[build-dependencies]
+tbaapi = { path = "./tbaapi" }
+dotenv = "0.15.0"
+tokio = { version = "1.44.2", features = ["rt-multi-thread"] }
+frozen-collections = "0.4.0"
+syn = "2.0.3"
+proc-macro2 = "1.0.94"
+
 [features]
 ssr = [
     "dep:axum",
@@ -137,7 +145,7 @@ site-pkg-dir = "pkg"
 # [Optional] The source CSS file. If it ends with .sass or .scss then it will be compiled by dart-sass into CSS. The CSS is optimized by Lightning CSS before being written to <site-root>/<site-pkg>/app.css
 style-file = "output/main.css"
 # Assets source dir. All files found here will be copied and synchronized to site-root.
-# The assets-dir cannot have a sub directory with the same name/path as site-pkg-dir.
+# The assets-dir cannot have a subdirectory with the same name/path as site-pkg-dir.
 #
 # Optional. Env: LEPTOS_ASSETS_DIR.
 assets-dir = "public"
@@ -149,8 +157,8 @@ site-addr = "127.0.0.1:3000"
 reload-port = 3001
 
 # [Optional] Command to use when running end2end tests. It will run in the end2end dir.
-#   [Windows] for non-WSL use "npx.cmd playwright test"
-#   This binary name can be checked in Powershell with Get-Command npx
+# [Windows] for non-WSL use "npx.cmd playwright test"
+# This binary name can be checked in Powershell with Get-Command npx
 end2end-cmd = "npx playwright test"
 end2end-dir = "end2end"
 

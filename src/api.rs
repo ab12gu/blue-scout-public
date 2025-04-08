@@ -139,22 +139,18 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
                 .position(|&x| x == team_number as usize)
                 .expect("team number should have been inserted earlier")
         };
-        let team_name = TEAM_NAMES
-            .get()
-            .expect("TEAM_NAMES should have been initialized")
-            .get(&team_number)
-            .cloned();
+        let team_name = TEAM_NAMES.get(&team_number).copied();
         if data.is_empty() {
             if is_blue_team {
                 match_info.blue[team_index] = TeamInfo {
                     team_number,
-                    team_name,
+                    team_name: team_name.map(ToOwned::to_owned),
                     team_data: None,
                 };
             } else {
                 match_info.red[team_index] = TeamInfo {
                     team_number,
-                    team_name,
+                    team_name: team_name.map(ToOwned::to_owned),
                     team_data: None,
                 };
             }
@@ -164,13 +160,13 @@ pub async fn get_match_info(match_number: i32, event: &str) -> Result<MatchInfo,
         if is_blue_team {
             match_info.blue[team_index] = TeamInfo {
                 team_number,
-                team_name,
+                team_name: team_name.map(ToOwned::to_owned),
                 team_data: Some(data),
             };
         } else {
             match_info.red[team_index] = TeamInfo {
                 team_number,
-                team_name,
+                team_name: team_name.map(ToOwned::to_owned),
                 team_data: Some(data),
             };
         }

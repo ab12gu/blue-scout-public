@@ -4,7 +4,6 @@ use axum::body::Body;
 #[cfg(feature = "ssr")]
 use axum::response::IntoResponse;
 use blue_scout::db::get_conn;
-use frozen_collections::FzScalarMap;
 use tbaapi::apis::configuration::Configuration;
 
 /// Initializes the team names by fetching data from the TBA API and storing it
@@ -18,33 +17,32 @@ use tbaapi::apis::configuration::Configuration;
 /// processing.
 #[cfg(feature = "ssr")]
 async fn init_team_names() -> anyhow::Result<()> {
-    use blue_scout::{api_config, TEAM_NAMES};
-    use tbaapi::apis::default_api::get_search_index;
-
-    let res = get_search_index(api_config()).await?;
-
-    let info: Vec<(u32, String)> = res
-        .teams
-        .into_iter()
-        .filter_map(|team| match team.key.trim_start_matches("frc").parse() {
-            Ok(val) => Some((val, team.nickname)),
-            Err(err) => {
-                tracing::error!("Error parsing team key: {err}");
-                None
-            }
-        })
-        .collect();
-
-    if info.is_empty() {
-        return Err(anyhow::anyhow!("Team keys is empty"));
-    }
-
-    let team_names = FzScalarMap::new(info);
-
-    TEAM_NAMES
-        .set(team_names)
-        .expect("TEAM_NAMES should not be set yet");
-
+    //     use blue_scout::{api_config, TEAM_NAMES};
+    //     use tbaapi::apis::default_api::get_search_index;
+    //
+    //     let res = get_search_index(api_config()).await?;
+    //
+    //     let info: Vec<(u32, String)> = res
+    //         .teams
+    //         .into_iter()
+    //         .filter_map(|team| match team.key.trim_start_matches("frc").parse() {
+    //             Ok(val) => Some((val, team.nickname)),
+    //             Err(err) => {
+    //                 tracing::error!("Error parsing team key: {err}");
+    //                 None
+    //             }
+    //         })
+    //         .collect();
+    //     if info.is_empty() {
+    //         return Err(anyhow::anyhow!("Team keys is empty"));
+    //     }
+    //
+    //     let team_names = FzScalarMap::new(info);
+    //
+    //     TEAM_NAMES
+    //         .set(team_names)
+    //         .expect("TEAM_NAMES should not be set yet");
+    //
     Ok(())
 }
 
@@ -199,7 +197,7 @@ async fn main() {
 
     API_CONFIG.set(config).expect("This should not be set yet");
 
-    init_team_names().await.expect("TODO: Handle error");
+    // init_team_names().await.expect("TODO: Handle error");
 
     init_db()
         .await

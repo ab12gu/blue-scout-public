@@ -478,14 +478,14 @@ pub fn define_struct(input: TokenStream) -> TokenStream {
                     .map(|(_, pretty)| *pretty)
             }
 
-            /// Get the type of a field by name
+            /// Get the type of field by name
             pub fn get_field_type(field_name: &str) -> Option<DataTypeName> {
                 #const_name.iter()
                     .find(|(name, _)| *name == field_name)
                     .map(|(_, typ)| *typ)
             }
 
-            /// Get the filter type of a field by name
+            /// Get the filter type of field by name
             pub fn get_field_filter_type(field_name: &str) -> Option<FilterType> {
                 #filter_type_const_name.iter()
                     .find(|(name, _)| *name == field_name)
@@ -592,7 +592,7 @@ pub fn define_reduced_columns(input: TokenStream) -> TokenStream {
                 #filter_type_const_name
             }
 
-            /// Get the filter type of a field by name
+            /// Get the filter type of field by name
             pub fn get_field_filter_type_reduced(field_name: &str) -> Option<FilterType> {
                 #filter_type_const_name.iter()
                     .find(|(name, _)| *name == field_name)

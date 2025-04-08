@@ -3,6 +3,9 @@
 #![feature(let_chains, extern_types)]
 #![recursion_limit = "256"]
 
+#[cfg(feature = "ssr")]
+include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+
 use core::sync::atomic::AtomicBool;
 
 use chrono::NaiveDate;
@@ -18,10 +21,7 @@ mod tablefilterjs;
 pub use error::BlueScoutError;
 
 #[cfg(feature = "ssr")]
-use {
-    frozen_collections::FzScalarMap, once_cell::sync::OnceCell, std::sync::OnceLock,
-    tbaapi::apis::configuration::Configuration,
-};
+use {once_cell::sync::OnceCell, tbaapi::apis::configuration::Configuration};
 
 /// Global static variable to store the TBA API configuration.
 /// Only available when the `ssr` feature is enabled.
@@ -42,11 +42,6 @@ pub fn api_config() -> &'static Configuration {
 /// A constant string used as a key to indicate whether the Leptos application
 /// has been hydrated.
 pub const LEPTOS_HYDRATED: &str = "_leptos_hydrated";
-
-/// Global static variable to store team names, mapping team numbers to team
-/// names. Only available when the `ssr` feature is enabled.
-#[cfg(feature = "ssr")]
-pub static TEAM_NAMES: OnceLock<FzScalarMap<u32, String>> = OnceLock::new();
 
 /// Global static variable to track whether the application has been hydrated.
 pub static HYDRATED: AtomicBool = AtomicBool::new(false);

@@ -67,14 +67,14 @@ impl Parse for JsonValueInput {
     fn parse(input: ParseStream) -> Result<Self> {
         if input.peek(Token![-]) && (input.peek2(LitInt) || input.peek2(LitFloat)) {
             let expr: Expr = input.parse()?;
-            if let Some((_, _negated)) = get_numeric_literal(&expr) {
-                return Ok(JsonValueInput::Expr(expr));
+            return if let Some((_, _negated)) = get_numeric_literal(&expr) {
+                Ok(JsonValueInput::Expr(expr))
             } else {
-                return Err(syn::Error::new(
+                Err(syn::Error::new(
                     expr.span(),
                     "Expected negative number literal",
-                ));
-            }
+                ))
+            };
         }
 
         let lookahead = input.lookahead1();

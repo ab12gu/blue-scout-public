@@ -1,3 +1,5 @@
+//! Fallback page for 404 errors.
+
 #[cfg(feature = "ssr")]
 #[allow(unused_imports)]
 use crate::api_config;
