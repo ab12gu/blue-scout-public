@@ -10,6 +10,7 @@ Before you begin, make sure you have the following installed:
 
 - **Docker**: [Install Docker](https://docs.docker.com/get-docker/)
 - **Docker Compose**: [Install Docker Compose](https://docs.docker.com/compose/install/)
+  - Already installed w/ installation of Docker*
 
 ---
 
