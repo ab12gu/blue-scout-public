@@ -7,3 +7,5 @@ services:
     working_dir: /app
     stdin_open: true
     tty: true
+    ports:
+        - "3000:3000"  # 👈 Add this line

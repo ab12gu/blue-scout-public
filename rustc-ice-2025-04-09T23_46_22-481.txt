@@ -1,0 +1,45 @@
+thread 'rustc' panicked at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/compiler/rustc_query_system/src/dep_graph/serialized.rs:260:21:
+Error: A dep graph node (trait_impls_of) does not have an unique index. Running a clean build on a nightly compiler with `-Z incremental-verify-ich` can help narrow down the issue for reporting. A clean build may also work around the issue.
+
+                     DepNode: DepKind { variant: 169 }(53db2345a7baf94f-e9cc1126a9cf201b)
+stack backtrace:
+   0:     0xffffa22ea550 - std::backtrace_rs::backtrace::libunwind::trace::hbc6071f15395a40b
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/std/src/../../backtrace/src/backtrace/libunwind.rs:117:9
+   1:     0xffffa22ea550 - std::backtrace_rs::backtrace::trace_unsynchronized::h0ec60de1641ef8eb
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/std/src/../../backtrace/src/backtrace/mod.rs:66:14
+   2:     0xffffa22ea550 - std::backtrace::Backtrace::create::hf4817a0c69afa4de
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/std/src/backtrace.rs:331:13
+   3:     0xffffa154d294 - std[2cc171078f199c15]::panicking::update_hook::<alloc[e77936e429853f44]::boxed::Box<rustc_driver_impl[5054bf4d1ce3b968]::install_ice_hook::{closure#1}>>::{closure#0}
+   4:     0xffffa2304810 - <alloc::boxed::Box<F,A> as core::ops::function::Fn<Args>>::call::hd057632386009bd4
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/alloc/src/boxed.rs:1980:9
+   5:     0xffffa2304810 - std::panicking::rust_panic_with_hook::h543944863fae55b1
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/std/src/panicking.rs:841:13
+   6:     0xffffa230450c - std::panicking::begin_panic_handler::{{closure}}::h70dbd2fc6b19f539
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/std/src/panicking.rs:706:13
+   7:     0xffffa2300d88 - std::sys::backtrace::__rust_end_short_backtrace::he16f94f5ca24ead8
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/std/src/sys/backtrace.rs:168:18
+   8:     0xffffa2304204 - __rustc[f84ae5861e8c8fa0]::rust_begin_unwind
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/std/src/panicking.rs:697:5
+   9:     0xffff9f527810 - core::panicking::panic_fmt::h4cd2b76d4a6aebc6
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/core/src/panicking.rs:75:14
+  10:     0xffffa0ca4a48 - rustc_incremental[72366f5adadcee84]::persist::load::setup_dep_graph
+  11:     0xffffa0b9bd8c - rustc_interface[84d6e9747e324d6a]::interface::run_compiler::<(), rustc_driver_impl[5054bf4d1ce3b968]::run_compiler::{closure#0}>::{closure#1}
+  12:     0xffffa15623a0 - <rayon_core[646167a4e89bf090]::job::StackJob<rayon_core[646167a4e89bf090]::latch::LatchRef<rayon_core[646167a4e89bf090]::latch::LockLatch>, <rayon_core[646167a4e89bf090]::registry::Registry>::in_worker_cold<<rayon_core[646167a4e89bf090]::thread_pool::ThreadPool>::install<rustc_interface[84d6e9747e324d6a]::util::run_in_thread_pool_with_globals<rustc_interface[84d6e9747e324d6a]::interface::run_compiler<(), rustc_driver_impl[5054bf4d1ce3b968]::run_compiler::{closure#0}>::{closure#1}, ()>::{closure#3}::{closure#0}::{closure#1}::{closure#0}, ()>::{closure#0}, ()>::{closure#0}::{closure#0}, ()> as rayon_core[646167a4e89bf090]::job::Job>::execute
+  13:     0xffffa10c0e94 - <rayon_core[646167a4e89bf090]::registry::WorkerThread>::wait_until_cold
+  14:     0xffffa10bed7c - <rayon_core[646167a4e89bf090]::registry::ThreadBuilder>::run
+  15:     0xffffa1553b0c - <<crossbeam_utils[b7d06afaddcdce00]::thread::ScopedThreadBuilder>::spawn<<rayon_core[646167a4e89bf090]::ThreadPoolBuilder>::build_scoped<rustc_interface[84d6e9747e324d6a]::util::run_in_thread_pool_with_globals<rustc_interface[84d6e9747e324d6a]::interface::run_compiler<(), rustc_driver_impl[5054bf4d1ce3b968]::run_compiler::{closure#0}>::{closure#1}, ()>::{closure#3}::{closure#0}::{closure#0}, rustc_interface[84d6e9747e324d6a]::util::run_in_thread_pool_with_globals<rustc_interface[84d6e9747e324d6a]::interface::run_compiler<(), rustc_driver_impl[5054bf4d1ce3b968]::run_compiler::{closure#0}>::{closure#1}, ()>::{closure#3}::{closure#0}::{closure#1}, ()>::{closure#0}::{closure#0}::{closure#0}, ()>::{closure#0} as core[1498a5ab809c0b3d]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  16:     0xffffa15435c4 - std[2cc171078f199c15]::sys::backtrace::__rust_begin_short_backtrace::<alloc[e77936e429853f44]::boxed::Box<dyn core[1498a5ab809c0b3d]::ops::function::FnOnce<(), Output = ()> + core[1498a5ab809c0b3d]::marker::Send>, ()>
+  17:     0xffffa1553554 - <<std[2cc171078f199c15]::thread::Builder>::spawn_unchecked_<alloc[e77936e429853f44]::boxed::Box<dyn core[1498a5ab809c0b3d]::ops::function::FnOnce<(), Output = ()> + core[1498a5ab809c0b3d]::marker::Send>, ()>::{closure#1} as core[1498a5ab809c0b3d]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  18:     0xffffa2308e74 - <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once::hea3fd14141ff1c9f
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/alloc/src/boxed.rs:1966:9
+  19:     0xffffa2308e74 - <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once::hfc4a53e71e8a2a77
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/alloc/src/boxed.rs:1966:9
+  20:     0xffffa2308e74 - std::sys::pal::unix::thread::Thread::new::thread_start::h90a5b1c344476195
+                               at /rustc/e643f59f6da3a84f43e75dea99afaa5b041ea6bf/library/std/src/sys/pal/unix/thread.rs:109:17
+  21:     0xffffa290e648 - start_thread
+  22:     0xffffa2864c9c - <unknown>
+  23:                0x0 - <unknown>
+
+
+rustc version: 1.88.0-nightly (e643f59f6 2025-04-07)
+platform: aarch64-unknown-linux-gnu
